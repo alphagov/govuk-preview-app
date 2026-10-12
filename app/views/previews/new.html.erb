@@ -8,7 +8,7 @@
     <% if @preview.errors.any? %>
       <%= render "govuk_publishing_components/components/error_summary", {
         title: "There is a problem",
-        items: @preview.errors.map { |error| { text: error.full_message, href: "#preview_#{error.attribute}" } },
+        items: @preview.errors.map { |error| { text: error.full_message, href: error_summary_href(@preview, error) } },
       } %>
     <% end %>
 
@@ -16,8 +16,8 @@
 
     <p class="govuk-body">
       Runs a branch of a GOV.UK application at its own address, alongside a dedicated copy of the services it
-      depends on, each running <code>main</code>. By default that's just its core dependencies (e.g. Publishing
-      API for Whitehall).
+      depends on, each running <code>main</code> unless you choose another branch for it. By default that's just
+      its core dependencies (e.g. Publishing API for Whitehall).
     </p>
 
     <%= form_with url: previews_path, method: :post do %>
@@ -32,7 +32,7 @@
             value: name,
             text: name,
             checked: @preview.app_name == name,
-            conditional: (full_stack_checkbox(name, checked: @preview.app_name == name && @preview.full_stack?) if GovukApps.full_stack_option?(name)),
+            conditional: app_options(name, @preview),
           }.compact
         },
       } %>

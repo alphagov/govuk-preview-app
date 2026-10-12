@@ -151,6 +151,20 @@ RSpec.describe PreviewBuilder do
         expect(preview.reload.status).to eq("running")
       end
 
+      it "builds each dependency on the branch chosen for it, at any depth" do
+        preview = create(:preview, app_name: "whitehall", branch: "my-branch", full_stack: true,
+                                   dependency_branches: { "publishing-api" => "api-branch", "content-store" => "cs-branch" })
+
+        described_class.new(preview).build!
+
+        publishing_api = preview.reload.dependents.find_by!(app_name: "publishing-api")
+        expect(publishing_api.branch).to eq("api-branch")
+        expect(publishing_api.dependents.find_by!(app_name: "content-store").branch).to eq("cs-branch")
+        expect(publishing_api.dependents.find_by!(app_name: "draft-content-store").branch).to eq("main")
+        expect(ImageResolver).to have_received(:new).with(GovukApps.find("publishing-api"), "api-branch")
+        expect(ImageResolver).to have_received(:new).with(GovukApps.find("content-store"), "cs-branch")
+      end
+
       it "builds the dependency's own dependencies too (content-store/draft-content-store, two levels down)" do
         preview = create(:preview, app_name: "whitehall", branch: "my-branch", full_stack: true)
 

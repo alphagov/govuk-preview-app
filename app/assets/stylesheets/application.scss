@@ -74,3 +74,41 @@ $app-page-width: 1200px;
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+// A branch for each app in a preview's stack, on the new-preview form -
+// one compact row each (label beside input), since most stay on `main`.
+// See PreviewsHelper#dependency_branch_fields. Wraps on narrow screens.
+.app-dependency-branch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: govuk-spacing(2);
+}
+
+.app-dependency-branch__label {
+  flex: 0 0 11em;
+  margin-bottom: 0;
+}
+
+.app-dependency-branches__footnote {
+  margin-bottom: 0;
+}
+
+.app-dependency-branch__input {
+  flex: 0 1 auto;
+}
+
+// Above the input, across the whole row, as GOV.UK error messages are.
+.app-dependency-branch__error {
+  flex: 1 0 100%;
+  order: -1;
+  margin-bottom: govuk-spacing(1);
+}
+
+// GOV.UK's red error border, pulled out to the left by its own width, so
+// the row's label and input stay lined up with the others.
+.app-dependency-branch--error {
+  margin-left: -(govuk-spacing(3) + $govuk-border-width-form-group-error);
+  padding-left: govuk-spacing(3);
+  border-left: $govuk-border-width-form-group-error solid $govuk-error-colour;
+}

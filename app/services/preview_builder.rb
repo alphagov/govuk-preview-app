@@ -157,7 +157,7 @@ private
       end
 
       dependent = preview.dependents.find_by(app_name: dep_name) ||
-        Preview.create!(app_name: dep_name, branch: "main", parent: preview)
+        Preview.create!(app_name: dep_name, branch: preview.root.dependency_branch(dep_name), parent: preview)
       resolved_env = self.class.new(dependent).build!(inherited_env: inherited_env.merge(env))
 
       unless dependent.reload.running?

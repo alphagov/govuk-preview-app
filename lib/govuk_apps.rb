@@ -80,6 +80,13 @@ module GovukApps
     find(name)&.full_stack_dependencies.present?
   end
 
+  # Every app a preview of `name` can ever run as a dependency, once each:
+  # its full stack, if it has one to offer, or else just its core stack -
+  # e.g. Publisher's never includes Publishing API's Content Stores.
+  def self.stack_dependencies(name)
+    dependency_tree(name, full_stack: full_stack_option?(name)).uniq
+  end
+
   # What a preview of `name`'s full stack runs on top of its core stack.
   def self.full_stack_extras(name)
     dependency_tree(name) - dependency_tree(name, full_stack: false)

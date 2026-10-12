@@ -213,6 +213,18 @@ RSpec.describe GovukApps do
     end
   end
 
+  describe ".stack_dependencies" do
+    it "lists every app a preview can ever run as a dependency, once each, full stack included" do
+      expect(described_class.stack_dependencies("whitehall")).to eq(
+        %w[publishing-api content-store draft-content-store asset-manager frontend draft-frontend],
+      )
+    end
+
+    it "leaves out a dependency's own full stack when the app itself offers none" do
+      expect(described_class.stack_dependencies("publisher")).to eq(%w[publishing-api])
+    end
+  end
+
   describe ".full_stack_option? and .full_stack_extras" do
     it "lists what an app's own full stack adds - e.g. Whitehall's Frontends, and Publishing API's Content Stores" do
       expect(described_class.full_stack_extras("whitehall")).to eq(%w[content-store draft-content-store asset-manager frontend draft-frontend])
