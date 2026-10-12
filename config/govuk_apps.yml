@@ -1,98 +1,10 @@
 # The GOV.UK apps that Preview App knows how to run previews for. Each app's
 # image comes from ghcr.io/alphagov/govuk/<repo name> (see ImageResolver).
+# A small manifest owned by Preview App itself, not a file each previewable
+# app's own repo has to carry.
 #
-# This is a small manifest owned by Preview App itself (not a file each
-# previewable app's own repo has to carry).
-#
-# `env` is a fixed set of extra environment variables passed to the app's
-# pods - e.g. pointing a read-only dependency (frontend's Content Store
-# client, via Plek) at the real GOV.UK service instead of running a preview
-# of it.
-#
-# `dependencies` names other apps in this manifest that must run as their
-# own real, dedicated preview (never shared across parents) before this app
-# starts - e.g. Whitehall needs a real, writable Publishing API, not the
-# real GOV.UK one. See PreviewBuilder. Order matters: each dependency can
-# see the resolved PLEK_SERVICE_*_URI of every dependency declared *before*
-# it in the same list (so Whitehall's `frontend` dependency, declared after
-# `publishing-api`, inherits the real local Content Store address that
-# publishing-api's own `content-store` dependency resolved - not frontend's
-# own static, real-GOV.UK default below).
-#
-# `database` declares the database this app needs (one per preview, never
-# shared - see KubernetesDatabaseRunner). Omit entirely for apps with no database (e.g.
-# frontend).
-#
-# `setup_tasks` names `bin/rails` tasks to run, in order, as one-off
-# Kubernetes Jobs after the database is seeded and before the app starts -
-# e.g. Whitehall needs a basic taxonomy in Publishing API before a document
-# can be tagged to a topic, the same way govuk-docker's own Makefile sets
-# this up (see projects/whitehall/Makefile). A failing task fails the
-# preview, with the task's error as its status message (see
-# PreviewBuilder).
-#
-# `worker_command` starts a second, long-running Deployment from the same
-# image (e.g. Publishing API's Sidekiq worker, which actually pushes
-# published content downstream to Content Store - without it, nothing
-# ever leaves Publishing API's own database). See KubernetesRunner#start_worker!.
-#
-# `publicly_readable: true` makes a *dependency* preview reachable at a
-# short, randomised hostname (e.g. content-store-mvym1ob...) instead of its
-# full, dependency-chain-shaped slug - see HostRouter and
-# Preview#generate_public_hostname. Only for read-only, non-state-mutating
-# APIs. Has no effect on a preview with no parent (a standalone top-level
-# preview already gets a perfectly good, readable hostname from its slug).
-#
-# `env_aliases` re-exposes one of the dependency addresses this app has
-# been given, inherited or its own, under a different env var key, for its
-# own pods only (not propagated to siblings/the parent) - see
-# PreviewBuilder#build!. Only applied when that address exists - e.g. only
-# in a full stack, for full-stack dependencies. Needed when an app's own
-# code reads a fixed env var name, whichever instance it should talk to:
-# e.g. draft-frontend is the same codebase as frontend, which only ever
-# reads PLEK_SERVICE_CONTENT_STORE_URI (never the draft one); and
-# Whitehall builds its "View on website"/"Preview on website" links from
-# GOVUK_WEBSITE_ROOT and PLEK_SERVICE_DRAFT_ORIGIN_URI.
-#
-# `full_stack_dependencies` are like `dependencies`, but only started when a
-# preview asks for its full stack (Preview#full_stack) - built after this
-# app's `dependencies`, in order. They're for seeing an app's output end to
-# end (e.g. Whitehall's Frontends, to view published and draft pages; or
-# Publishing API's Content Stores), never for something the app interacts
-# with directly: e.g. Publishing API is always one of Whitehall's
-# `dependencies`, since its responses (validation errors and all) are part
-# of what a Whitehall preview is for. An app's full stack is therefore its
-# own: a future Collections Publisher's would be its Collections apps plus
-# Publishing API's Content Stores - no Frontend. In a core stack, the app
-# that would have used a left-out dependency is pointed at a stand-in that
-# accepts and discards everything instead (kubernetes/previews/sink.yaml).
-#
-# `memory` sets what each of the app's pods (web, worker and one-off tasks)
-# requests and is limited to - and `database: memory:`, its database's.
-# Requests are what Kubernetes schedules by and charges the previews quota
-# for, so they're sized from real usage (bin/preview-usage): roughly 25%
-# above what a lightly-used preview of the app uses once booted. Limits
-# leave 2-3x headroom for boot and spikes. Apps without one get a generous
-# default (see KubernetesRunner.memory_for) until they've been measured.
-#
-# `shared_volumes` are directories an app's web and worker processes both
-# need - e.g. Whitehall's web process saves an upload that its worker then
-# sends to Asset Manager. An app with any runs its worker as a second
-# container in its web pod (see KubernetesRunner), with each one mounted at
-# `path` in both. They start empty, and are lost when the preview is put to
-# sleep - unless `persistent: true`, which keeps one on a volume of its own
-# (`size`, default 1Gi) until the preview is deleted.
-#
-# `self_url_env` names env vars to set to the preview's own public URL - see
-# PreviewEnv.
-#
-# `public_paths` limits a `publicly_readable` dependency's public hostname to
-# GET and HEAD requests for paths starting with one of these - e.g. Asset
-# Manager's assets, but not its API (see HostRouter).
-#
-# `resync_tasks` names `bin/rails` tasks to run when a running preview is
-# switched to the full stack - e.g. re-sending everything Publishing API
-# holds to the Content Stores that have just been added.
+# See docs/manifest.md for what every key here means, and a walkthrough of
+# adding a new app or dependency.
 
 frontend:
   memory:
