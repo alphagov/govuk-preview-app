@@ -260,6 +260,8 @@ RSpec.describe Preview do
 
     it "ignores apps that aren't in the stack, and anything that isn't a hash of branches" do
       expect(create(:preview, app_name: "publisher", dependency_branches: { "frontend" => "fe-branch" }).dependency_branches).to eq({})
+      # Publishing API's own full stack never runs in Publisher's stack.
+      expect(create(:preview, app_name: "publisher", dependency_branches: { "content-store" => "cs-branch" }).dependency_branches).to eq({})
       expect(create(:preview, app_name: "publisher", dependency_branches: "nonsense").dependency_branches).to eq({})
     end
 

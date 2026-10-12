@@ -135,11 +135,25 @@ RSpec.describe "Previews" do
       fields = page.all("input[name^='preview[dependency_branches_for]']")
       whitehall = fields.select { |field| field[:name].start_with?("preview[dependency_branches_for][whitehall]") }
       expect(whitehall.map { |field| field[:name] }).to eq(
-        GovukApps.dependency_tree("whitehall").uniq.map { |dependency| "preview[dependency_branches_for][whitehall][#{dependency}]" },
+        GovukApps.stack_dependencies("whitehall").map { |dependency| "preview[dependency_branches_for][whitehall][#{dependency}]" },
       )
       expect(fields.map(&:value).uniq).to eq(%w[main])
       expect(page.find("label[for='preview_dependency_branch_whitehall_publishing_api']").text).to eq("publishing-api")
       expect(fields.map { |field| field[:name] }).not_to include(a_string_starting_with("preview[dependency_branches_for][frontend]"))
+    end
+
+    it "marks the dependencies that only run in the full stack, explaining the mark only where there are any" do
+      get new_preview_path
+
+      page = Capybara::Node::Simple.new(response.body)
+      label = ->(app, dependency) { page.find("label[for='preview_dependency_branch_#{app}_#{dependency}']").text.squish }
+      expect(label.call("whitehall", "publishing_api")).to eq("publishing-api")
+      expect(label.call("whitehall", "content_store")).to eq("content-store* (full stack only)")
+      expect(label.call("whitehall", "frontend")).to eq("frontend* (full stack only)")
+      expect(page.find("#preview_full_stack_whitehall").ancestor(".govuk-radios__conditional")).to have_text("* Full stack only")
+      expect(label.call("publisher", "publishing_api")).to eq("publishing-api")
+      expect(page).to have_no_css("#preview_dependency_branch_publisher_content_store")
+      expect(page.find("#preview_dependency_branch_publisher_publishing_api").ancestor(".govuk-radios__conditional")).to have_no_text("Full stack only")
     end
 
     it "only mentions local images when they're enabled" do
