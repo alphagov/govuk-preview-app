@@ -34,8 +34,10 @@ class Preview < ApplicationRecord
   validates :branch, presence: true
   validates :slug, presence: true, uniqueness: true
   validate :branch_is_a_usable_source
+  validate :dependency_branches_are_usable_sources
 
   before_validation :generate_slug, on: :create
+  before_validation :normalise_dependency_branches, on: :create
   before_validation :ignore_full_stack_without_option
   before_validation :generate_public_hostname, on: :create
 
@@ -100,6 +102,25 @@ class Preview < ApplicationRecord
     parent.present? ? parent.root : self
   end
 
+  # The branch a dependency preview of `app_name` runs anywhere in this
+  # top-level preview's stack - `main`, unless another was chosen when the
+  # preview was created.
+  def dependency_branch(app_name)
+    dependency_branches.fetch(app_name, "main")
+  end
+
+  # Why `branch` can't be previewed, if it can't - see
+  # #branch_is_a_usable_source.
+  def self.branch_source_error(branch)
+    return unless ImageResolver.local?(branch)
+
+    if !ImageResolver.local_images_enabled?
+      "can only use a local image in local development"
+    elsif !ImageResolver.local_tag(branch).match?(ImageResolver::LOCAL_TAG_FORMAT)
+      "has an invalid local image tag"
+    end
+  end
+
   # This preview and every dependency preview beneath it, at any depth.
   def tree
     [self, *dependents.flat_map(&:tree)]
@@ -158,12 +179,27 @@ private
   # A `local:<tag>` branch is an image built from a developer's own
   # checkout (see ImageResolver, bin/preview-build) - only usable locally.
   def branch_is_a_usable_source
-    return unless ImageResolver.local?(branch)
+    error = self.class.branch_source_error(branch)
+    errors.add(:branch, error) if error
+  end
 
-    if !ImageResolver.local_images_enabled?
-      errors.add(:branch, "can only use a local image in local development")
-    elsif !ImageResolver.local_tag(branch).match?(ImageResolver::LOCAL_TAG_FORMAT)
-      errors.add(:branch, "has an invalid local image tag")
+  # Only a top-level preview chooses its dependencies' branches, and only
+  # for apps actually in its stack (its full stack included, so they're
+  # already known if that's added later). `main` is the default, so isn't
+  # stored, and nor is a field left blank.
+  def normalise_dependency_branches
+    stack = parent.nil? && app_name.present? ? GovukApps.dependency_tree(app_name).uniq : []
+    chosen = dependency_branches.is_a?(Hash) ? dependency_branches : {}
+    self.dependency_branches = chosen
+      .slice(*stack)
+      .transform_values { |branch| branch.to_s.strip }
+      .reject { |_, branch| branch.blank? || branch == "main" }
+  end
+
+  def dependency_branches_are_usable_sources
+    dependency_branches.each do |app_name, branch|
+      error = self.class.branch_source_error(branch)
+      errors.add(:dependency_branches, "for #{app_name} #{error}", dependency: app_name) if error
     end
   end
 

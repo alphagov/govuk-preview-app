@@ -29,3 +29,9 @@
 
 en:
   hello: "Hello world"
+  activerecord:
+    attributes:
+      preview:
+        # "Branch for publishing-api can only use a local image..." - see
+        # Preview#dependency_branches_are_usable_sources.
+        dependency_branches: "Branch"
