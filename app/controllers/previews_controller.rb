@@ -97,9 +97,16 @@ class PreviewsController < ApplicationController
 
 private
 
+  # Like the full stack box, each app's dependency branch fields are its
+  # own (preview[dependency_branches_for][<app>][<dependency>]), so only
+  # the chosen app's count - see PreviewsHelper#app_options.
   def preview_params
-    attributes = params.expect(preview: [:app_name, :branch, { full_stack_for: {} }])
+    attributes = params.expect(preview: [:app_name, :branch, { full_stack_for: {}, dependency_branches_for: {} }])
     full_stack_for = attributes.delete(:full_stack_for).to_h
-    attributes.merge(full_stack: full_stack_for[attributes[:app_name]] == "true")
+    dependency_branches_for = attributes.delete(:dependency_branches_for).to_h
+    attributes.merge(
+      full_stack: full_stack_for[attributes[:app_name]] == "true",
+      dependency_branches: dependency_branches_for.fetch(attributes[:app_name], {}),
+    )
   end
 end

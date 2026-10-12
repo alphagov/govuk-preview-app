@@ -12,7 +12,7 @@ Preview App is a Rails app plus a Sidekiq worker. It never builds or runs anythi
 
 Nothing is built in the cluster. `ImageResolver` finds the image GOV.UK's own GitHub Actions already pushed to `ghcr.io/alphagov/govuk/<repo>`:
 
-- **`main`** - the app's latest release, tagged e.g. `v1234` by its own deploy workflow. Every dependency preview runs `main`, so these work out of the box.
+- **`main`** - the app's latest release, tagged e.g. `v1234` by its own deploy workflow. Every dependency preview runs `main` unless another branch is chosen for it, so these work out of the box.
 - **any other branch** - the image tagged with the branch's head commit SHA, pushed by the app's "Build image from PR" workflow (with pushing enabled). A preview waits (`waiting_for_image`) until it appears, so you can create one straight after pushing.
 - **`local:<tag>`** - local development only: an image built from your own checkout by `bin/preview-build` and loaded straight into the kind cluster. See [Previewing local code](#previewing-local-code).
 
@@ -26,7 +26,7 @@ On integration, images are pulled through GOV.UK's ECR pull-through cache in fro
 
 Creating a `Preview` (an app name + branch) enqueues `PreviewsCreateJob`, which delegates to `PreviewBuilder#build!`. This drives the preview through `queued` → `waiting_for_image` → `starting` → `running`, or `failed` at any step:
 
-1. **Dependencies first.** For each app named in the manifest's `dependencies`, in order, build a fresh, dedicated `Preview` (always branch `main`, never shared across parents) recursively, and inject its `PLEK_SERVICE_<NAME>_URI` (`http://<its Service name>`) into the parent's env once it's running. Order matters: each dependency also inherits the resolved `PLEK_SERVICE_*_URI`s of every dependency built *before* it in the same list - e.g. Whitehall's `frontend` dependency, declared after `publishing-api`, ends up pointed at the preview's own Content Store, not Frontend's default of the real GOV.UK one.
+1. **Dependencies first.** For each app named in the manifest's `dependencies`, in order, build a fresh, dedicated `Preview` (on branch `main` unless the new-preview form chose another for that app - stored on the top-level preview's `dependency_branches` - and never shared across parents) recursively, and inject its `PLEK_SERVICE_<NAME>_URI` (`http://<its Service name>`) into the parent's env once it's running. Order matters: each dependency also inherits the resolved `PLEK_SERVICE_*_URI`s of every dependency built *before* it in the same list - e.g. Whitehall's `frontend` dependency, declared after `publishing-api`, ends up pointed at the preview's own Content Store, not Frontend's default of the real GOV.UK one.
 2. **Resolve the image** (`ImageResolver`) - see above.
 3. **Config overrides** (`ConfigOverrides`) - a fixed initializer, mounted into every pod from a ConfigMap, fixing problems a plain env var can't reach: some apps hardcode an `x_sendfile_header`, some apps' `database.yml` ignores `DATABASE_URL` in production, and some set `config.hosts` to a real GOV.UK-only allowlist that would 403 every preview hostname.
 4. **Database**, if the manifest declares one (`KubernetesDatabaseRunner`) - a dedicated, never-shared MySQL, Postgres or MongoDB StatefulSet with its own small volume, then a `db:create db:schema:load` Job (or, for Mongoid apps, `db:mongoid:create_indexes`) and a `db:seed` Job.

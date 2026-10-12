@@ -1,0 +1,28 @@
+<div class="govuk-form-group app-dependency-branches">
+  <fieldset class="govuk-fieldset" aria-describedby="<%= "preview_dependency_branches_#{app_name.underscore}_hint" %>">
+    <legend class="govuk-fieldset__legend govuk-fieldset__legend--s">Dependency branches</legend>
+    <div id="<%= "preview_dependency_branches_#{app_name.underscore}_hint" %>" class="govuk-hint">
+      Any of the kinds of branch listed under "Branch" below.
+    </div>
+    <% dependencies.each do |dependency| %>
+      <% field_id = dependency_branch_field_id(app_name, dependency) %>
+      <% error = preview.errors.where(:dependency_branches, dependency:).first %>
+      <div class="app-dependency-branch<%= " app-dependency-branch--error" if error %>">
+        <label class="govuk-label app-dependency-branch__label" for="<%= field_id %>"><%= dependency %></label>
+        <% if error %>
+          <p id="<%= "#{field_id}_error" %>" class="govuk-error-message app-dependency-branch__error">
+            <span class="govuk-visually-hidden">Error:</span> <%= error.full_message %>
+          </p>
+        <% end %>
+        <input
+          class="govuk-input govuk-input--width-20 app-dependency-branch__input<%= " govuk-input--error" if error %>"
+          id="<%= field_id %>"
+          name="<%= "preview[dependency_branches_for][#{app_name}][#{dependency}]" %>"
+          type="text"
+          spellcheck="false"
+          value="<%= preview.dependency_branch(dependency) %>"
+          <% if error %>aria-describedby="<%= "#{field_id}_error" %>"<% end %>>
+      </div>
+    <% end %>
+  </fieldset>
+</div>

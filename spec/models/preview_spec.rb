@@ -236,4 +236,52 @@ RSpec.describe Preview do
       expect(preview.errors[:branch]).to include("has an invalid local image tag")
     end
   end
+
+  describe "#dependency_branches" do
+    it "keeps a chosen branch for any app in the stack, full stack included" do
+      preview = create(:preview, app_name: "whitehall", dependency_branches: { "publishing-api" => "api-branch", "frontend" => "fe-branch" })
+
+      expect(preview.dependency_branch("publishing-api")).to eq("api-branch")
+      expect(preview.dependency_branch("frontend")).to eq("fe-branch")
+    end
+
+    it "defaults every dependency to main, storing nothing for one left as main or blank" do
+      preview = create(:preview, app_name: "whitehall", dependency_branches: { "publishing-api" => "main", "frontend" => " " })
+
+      expect(preview.dependency_branches).to eq({})
+      expect(preview.dependency_branch("publishing-api")).to eq("main")
+    end
+
+    it "strips whitespace from a chosen branch" do
+      preview = create(:preview, app_name: "whitehall", dependency_branches: { "publishing-api" => " api-branch " })
+
+      expect(preview.dependency_branch("publishing-api")).to eq("api-branch")
+    end
+
+    it "ignores apps that aren't in the stack, and anything that isn't a hash of branches" do
+      expect(create(:preview, app_name: "publisher", dependency_branches: { "frontend" => "fe-branch" }).dependency_branches).to eq({})
+      expect(create(:preview, app_name: "publisher", dependency_branches: "nonsense").dependency_branches).to eq({})
+    end
+
+    it "is never set on a dependency preview itself - its root's choices apply" do
+      parent = create(:preview, app_name: "whitehall")
+      dependency = create(:preview, app_name: "publishing-api", parent:, dependency_branches: { "content-store" => "cs-branch" })
+
+      expect(dependency.dependency_branches).to eq({})
+    end
+
+    it "rejects a local: branch for a dependency unless local images are enabled, saying which" do
+      preview = build(:preview, app_name: "whitehall", dependency_branches: { "publishing-api" => "local:api-abc1234" })
+
+      expect(preview).not_to be_valid
+      expect(preview.errors.full_messages).to include("Branch for publishing-api can only use a local image in local development")
+      expect(preview.errors.where(:dependency_branches, dependency: "publishing-api")).to be_present
+    end
+
+    it "accepts a local: branch for a dependency when local images are enabled" do
+      enable_local_images
+
+      expect(build(:preview, app_name: "whitehall", dependency_branches: { "publishing-api" => "local:api-abc1234" })).to be_valid
+    end
+  end
 end
