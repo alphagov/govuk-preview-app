@@ -17,7 +17,7 @@ module PreviewsHelper
     chosen = preview.app_name == app_name
     options = []
     options << full_stack_checkbox(app_name, checked: chosen && preview.full_stack?) if GovukApps.full_stack_option?(app_name)
-    dependencies = GovukApps.dependency_tree(app_name).uniq
+    dependencies = GovukApps.stack_dependencies(app_name)
     options << dependency_branch_fields(app_name, dependencies, chosen ? preview : Preview.new) if dependencies.any?
     safe_join(options) if options.any?
   end
@@ -25,9 +25,11 @@ module PreviewsHelper
   # One compact row (label beside input) per app in the stack - most are
   # left on `main`, so they shouldn't take up much room. Like the full
   # stack box, each app gets its own fields - see
-  # PreviewsController#preview_params.
+  # PreviewsController#preview_params. Apps that only run in the full stack
+  # are marked with an asterisk, explained beneath the fields.
   def dependency_branch_fields(app_name, dependencies, preview)
-    render "dependency_branches", app_name:, dependencies:, preview:
+    full_stack_only = GovukApps.full_stack_extras(app_name)
+    render "dependency_branches", app_name:, dependencies:, preview:, full_stack_only:
   end
 
   # The id of a dependency's branch field, which the error summary links to.

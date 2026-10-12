@@ -8,7 +8,7 @@
       <% field_id = dependency_branch_field_id(app_name, dependency) %>
       <% error = preview.errors.where(:dependency_branches, dependency:).first %>
       <div class="app-dependency-branch<%= " app-dependency-branch--error" if error %>">
-        <label class="govuk-label app-dependency-branch__label" for="<%= field_id %>"><%= dependency %></label>
+        <label class="govuk-label app-dependency-branch__label" for="<%= field_id %>"><%= dependency %><% if full_stack_only.include?(dependency) %><span aria-hidden="true">*</span><span class="govuk-visually-hidden"> (full stack only)</span><% end %></label>
         <% if error %>
           <p id="<%= "#{field_id}_error" %>" class="govuk-error-message app-dependency-branch__error">
             <span class="govuk-visually-hidden">Error:</span> <%= error.full_message %>
@@ -23,6 +23,9 @@
           value="<%= preview.dependency_branch(dependency) %>"
           <% if error %>aria-describedby="<%= "#{field_id}_error" %>"<% end %>>
       </div>
+    <% end %>
+    <% if (dependencies & full_stack_only).any? %>
+      <p class="govuk-hint app-dependency-branches__footnote" aria-hidden="true">* Full stack only</p>
     <% end %>
   </fieldset>
 </div>

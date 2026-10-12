@@ -188,7 +188,7 @@ private
   # already known if that's added later). `main` is the default, so isn't
   # stored, and nor is a field left blank.
   def normalise_dependency_branches
-    stack = parent.nil? && app_name.present? ? GovukApps.dependency_tree(app_name).uniq : []
+    stack = parent.nil? && app_name.present? ? GovukApps.stack_dependencies(app_name) : []
     chosen = dependency_branches.is_a?(Hash) ? dependency_branches : {}
     self.dependency_branches = chosen
       .slice(*stack)
