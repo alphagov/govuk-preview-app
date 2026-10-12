@@ -1,0 +1,119 @@
+<% content_for :page_title, "Resources" %>
+
+<%= render "govuk_publishing_components/components/heading", text: "Resources", heading_level: 1, margin_bottom: 6 %>
+
+<p class="govuk-body">
+  What previews have reserved between them, against the most they're allowed. This is what each pod asks for
+  and each volume claims - not what they're using right now - since that's what counts.
+</p>
+
+<% if @usage.nil? %>
+  <%= render "govuk_publishing_components/components/inset_text", text: "Couldn't reach Kubernetes to read what previews have reserved. Try again in a moment." %>
+<% else %>
+  <%= render "govuk_publishing_components/components/heading", text: "Limits", heading_level: 2, margin_bottom: 4 %>
+
+  <% if @usage.quota.empty? %>
+    <p class="govuk-body">There's no limit on what previews can reserve.</p>
+  <% else %>
+    <div class="govuk-grid-row">
+      <div class="govuk-grid-column-two-thirds">
+        <% @usage.quota.each do |row| %>
+          <% level = quota_level(row) %>
+          <div class="app-meter app-meter--<%= level %>">
+            <p class="govuk-body govuk-!-margin-bottom-1 app-meter__label">
+              <span class="govuk-!-font-weight-bold"><%= quota_label(row) %></span>
+              <span class="app-meter__value">
+                <%= quota_summary(row) %>
+                <% if level == :danger %>
+                  <strong class="govuk-tag govuk-tag--red app-meter__tag">Full</strong>
+                <% elsif level == :warning %>
+                  <strong class="govuk-tag govuk-tag--orange app-meter__tag">Nearly full</strong>
+                <% end %>
+              </span>
+            </p>
+            <svg class="app-meter__bar" width="100%" height="12" aria-hidden="true" focusable="false">
+              <rect class="app-meter__track" width="100%" height="12" rx="4"></rect>
+              <% if quota_percent(row).positive? %>
+                <rect class="app-meter__fill" width="<%= quota_percent(row) %>%" height="12" rx="4"></rect>
+              <% end %>
+            </svg>
+            <% if quota_hint(row) %>
+              <p class="govuk-hint govuk-!-font-size-16 govuk-!-margin-top-1 govuk-!-margin-bottom-0"><%= quota_hint(row) %></p>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%= render "govuk_publishing_components/components/heading", text: "Stacks", heading_level: 2, margin_bottom: 4 %>
+
+  <p class="govuk-body">
+    Each preview with everything it runs, largest first. A sleeping preview frees its memory, but keeps its storage.
+  </p>
+
+  <% if @usage.stacks.empty? %>
+    <p class="govuk-body">There are no previews.</p>
+  <% end %>
+
+  <% @usage.stacks.each do |stack| %>
+    <div class="app-resource-stack app-resource-table">
+      <h3 class="govuk-heading-s govuk-!-margin-bottom-2">
+        <%= stack_heading(stack.root) %>
+        <%= render "govuk_publishing_components/components/tag", text: stack.root.status %>
+      </h3>
+
+      <% if stack.parts.empty? %>
+        <p class="govuk-body">Nothing reserved.</p>
+      <% else %>
+        <%= render "govuk_publishing_components/components/table", {
+          head: [
+            { text: "App" },
+            { text: "Part" },
+            { text: "Memory reserved", format: "numeric" },
+            { text: "Memory limit", format: "numeric" },
+            { text: "Storage", format: "numeric" },
+          ],
+          rows: stack.parts.map { |part|
+            [
+              { text: part.name },
+              { text: part.component },
+              { text: format_part_mi(part.request), format: "numeric" },
+              { text: format_part_mi(part.limit), format: "numeric" },
+              { text: format_part_mi(part.storage), format: "numeric" },
+            ]
+          } + [[
+            { text: tag.strong("Total") },
+            { text: "" },
+            { text: tag.strong(format_mi(stack.request)), format: "numeric" },
+            { text: tag.strong(format_mi(stack.limit)), format: "numeric" },
+            { text: tag.strong(format_part_mi(stack.storage)), format: "numeric" },
+          ]],
+        } %>
+      <% end %>
+    </div>
+  <% end %>
+
+  <% if @usage.other.any? %>
+    <%= render "govuk_publishing_components/components/heading", text: "Shared", heading_level: 2, margin_bottom: 4 %>
+    <p class="govuk-body">Everything else in the previews namespace that counts towards the limits.</p>
+    <div class="app-resource-table app-resource-table--shared">
+    <%= render "govuk_publishing_components/components/table", {
+      head: [
+        { text: "Name" },
+        { text: "Memory reserved", format: "numeric" },
+        { text: "Memory limit", format: "numeric" },
+        { text: "Storage", format: "numeric" },
+      ],
+      rows: @usage.other.map { |part|
+        [
+          { text: part.name },
+          { text: format_part_mi(part.request), format: "numeric" },
+          { text: format_part_mi(part.limit), format: "numeric" },
+          { text: format_part_mi(part.storage), format: "numeric" },
+        ]
+      },
+    } %>
+    </div>
+  <% end %>
+<% end %>

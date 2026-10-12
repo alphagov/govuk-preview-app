@@ -17,6 +17,10 @@ class KubernetesApi
   class Error < StandardError; end
   class NotFound < Error; end
 
+  # Everything a call can fail with when the API can't be reached at all
+  # (e.g. no cluster locally) - besides Error, for a reply that's an error.
+  CONNECTION_ERRORS = [SystemCallError, IOError, OpenSSL::SSL::SSLError, Net::OpenTimeout].freeze
+
   SERVICE_ACCOUNT_DIR = Pathname.new("/var/run/secrets/kubernetes.io/serviceaccount")
   FIELD_MANAGER = "govuk-preview-app".freeze
 

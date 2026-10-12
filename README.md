@@ -67,6 +67,8 @@ The `previews` namespace is a security boundary, not just tidiness:
 
 Every preview stack has to fit in the `previews` namespace's `ResourceQuota` - on integration that's the cost cap (the cluster autoscaler adds nodes for anything within it), and locally it's set to what the single kind node can hold. Before a stack is built or woken, `PreviewCapacity` works out how much memory it needs (from what each of its pods requests) and, if there isn't room, puts the least recently used other stacks to sleep until there is. A stack used in the last 15 minutes is never put to sleep; if that leaves no room, the preview says it's at capacity rather than waiting indefinitely.
 
+The **Resources** page (linked from the header) shows how close previews are to that quota, from the same figures, and what each stack reserves, broken down by its parts (`ResourceUsage`). It reads the quota rather than any setting of its own, so it shows the right limits locally and on integration alike.
+
 Sleeping (`PreviewSleeper`) scales every Deployment and database in a stack to zero, keeping everything else - Services, config, images, and database volumes - so waking it is just scaling back up: no image pulls, migrations or seeds, and everything that had been published into it is still there. Visiting a sleeping preview (or one of its dependencies' public hostnames) shows a self-refreshing "Waking up" page and wakes the whole stack; previews can also be put to sleep or woken from the previews page. "Least recently used" means least recently *interacted with*: each preview records when someone last created, visited, retried, woke, put to sleep or resized it (`Preview#record_interaction!`) - never anything automatic, like a build finishing or a preview being put to sleep to make room. The previews page lists previews by the same thing, most recent first.
 
 A preview waiting for room in the cluster says so in its status, and a failed preview can be retried - its build carries on from where it stopped, reusing whatever had already started.
@@ -109,7 +111,7 @@ The local quota (`kubernetes/local/kustomization.yaml`) holds one full Whitehall
 
 After changing Preview App's own code, run `bin/kind-deploy` to rebuild and redeploy it (existing previews keep running). `bin/kind-down` deletes the cluster, every preview and Preview App's database.
 
-To see how much memory each preview stack actually uses, next to what its pods request and their limits, run `bin/preview-usage` (it uses metrics-server, which `bin/kind-up` installs locally).
+To see how much memory each preview stack actually uses, next to what its pods request and their limits, run `bin/preview-usage` (the Resources page only shows what's reserved) (it uses metrics-server, which `bin/kind-up` installs locally).
 
 Every `kubectl` command in these scripts passes `--context kind-govuk-preview-app`, so they can never touch any other cluster. To look around yourself:
 

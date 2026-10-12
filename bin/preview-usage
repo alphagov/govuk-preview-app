@@ -2,7 +2,8 @@
 # Shows how much memory each preview stack's pods actually use, next to
 # what they request (what Kubernetes schedules and charges the quota for)
 # and their limits - so requests can be sized from real numbers. See
-# PreviewCapacity and config/govuk_apps.yml.
+# PreviewCapacity and config/govuk_apps.yml. (Preview App's Resources page
+# shows what's reserved, on any cluster - this also shows what's used.)
 #
 #   bin/preview-usage
 #
