@@ -1,0 +1,246 @@
+#!/usr/bin/env ruby
+# Builds one or two real previews in the local kind cluster and exercises
+# the two things no spec in this repo can (everything in spec/ stubs
+# Kubernetes/GitHub/GHCR - see spec/spec_helper.rb) - a real HTTP round
+# trip through HostRouter's own Signon gate, and (with --full) a real
+# pod-to-pod request into Asset Manager's own MediaController:
+#
+#   bin/smoke-test [--full]
+#
+# Run bin/kind-up/bin/kind-deploy first. Exits non-zero with the first
+# failing check. Reuses a previous run's own previews rather than
+# building fresh ones each time (so repeated runs don't accumulate
+# stacks) - and never deletes anything itself: whatever it creates stays
+# visible on the previews page afterwards, like any other preview.
+#
+# This exists because two regressions this session - GDS_SSO_STRATEGY=
+# real breaking login only locally (a routing/networking problem, not
+# anything a unit test touches), and Asset Manager's own MediaController
+# redirecting a pod-to-pod request to an address only a browser could
+# reach - would have passed the entire rspec suite untouched. Both are
+# about whether a real request, from a real place, actually gets where
+# it's going - which only a real cluster can tell you.
+require "base64"
+require "json"
+require "net/http"
+require "open3"
+require "tmpdir"
+require "uri"
+
+CONTEXT = "kind-govuk-preview-app".freeze
+EXTERNAL_PORT = "8080".freeze
+
+# A real, minimal, valid 1x1 PNG - just needs to be a file Asset Manager
+# will accept and serve back, not anything meaningful to look at.
+TINY_PNG = Base64.decode64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=").freeze
+
+def kubectl(*args, namespace:)
+  out, err, status = Open3.capture3("kubectl", "--context", CONTEXT, "-n", namespace, *args)
+  abort("kubectl #{args.join(' ')} failed:\n#{err}") unless status.success?
+  out
+end
+
+def pod_name(namespace:, selector:)
+  kubectl("get", "pods", "-l", selector, "-o", "jsonpath={.items[0].metadata.name}", namespace:).strip
+end
+
+def preview_app_pod
+  pod_name(namespace: "apps", selector: "app.kubernetes.io/name=govuk-preview-app,app.kubernetes.io/component=app")
+end
+
+# Runs Ruby inside Preview App's own pod, the same way its own Sidekiq
+# jobs would - so creating/polling/destroying a preview here exercises
+# exactly PreviewBuilder/PreviewDestroyer, not a hand-rolled stand-in.
+def preview_app_runner(code)
+  pod = preview_app_pod
+  abort("Preview App's own pod isn't running - run bin/kind-deploy first") if pod.empty?
+
+  out, err, status = Open3.capture3(
+    "kubectl", "--context", CONTEXT, "-n", "apps", "exec", pod, "-c", "app", "--",
+    "bin/rails", "runner", code
+  )
+  abort("bin/rails runner failed:\n#{err}\n#{out}") unless status.success?
+  # bin/rails runner's own startup (e.g. govuk_app_config's time zone
+  # notice) can print to stdout ahead of our own `puts` - only the last
+  # line is ever ours.
+  out.lines.last.to_s.strip
+end
+
+# Reuses a top-level preview of this app/branch left over from an earlier
+# run, rather than failing on "slug has already been taken" - and so nothing
+# this script creates is ever destroyed just for having been used once.
+def find_or_create_preview(app_name, branch: "main")
+  Integer(preview_app_runner(<<~RUBY).strip)
+    preview = Preview.find_by(app_name: #{app_name.inspect}, branch: #{branch.inspect}, parent_id: nil)
+    unless preview
+      preview = Preview.create!(app_name: #{app_name.inspect}, branch: #{branch.inspect}, last_interacted_at: Time.current)
+      PreviewsCreateJob.perform_async(preview.id)
+    end
+    puts preview.id
+  RUBY
+end
+
+def preview_status(id)
+  JSON.parse(preview_app_runner(<<~RUBY))
+    preview = Preview.find(#{id})
+    puts({ status: preview.status, status_message: preview.status_message, hostname: preview.hostname }.to_json)
+  RUBY
+end
+
+def wait_until_running(id, timeout: 300)
+  # Plain Time, not Time.zone - this script never loads Rails/ActiveSupport.
+  deadline = Time.now + timeout # rubocop:disable Rails/TimeZone
+  woken = false
+  loop do
+    info = preview_status(id)
+    case info["status"]
+    when "running" then return info
+    when "failed" then abort("Preview #{id} failed to build: #{info['status_message']}")
+    when "sleeping"
+      # A reused preview from an earlier run, put to sleep since - wake it
+      # the same way the previews page's own "Wake" button would.
+      unless woken
+        preview_app_runner(<<~RUBY)
+          if Preview.where(id: #{id}, status: :sleeping).update_all(status: "waking", updated_at: Time.current) == 1
+            PreviewsWakeJob.perform_async(#{id})
+          end
+        RUBY
+        woken = true
+      end
+    end
+    abort("Timed out after #{timeout}s waiting for preview #{id} to start") if Time.now > deadline # rubocop:disable Rails/TimeZone
+
+    sleep 5
+  end
+end
+
+# The actual regression from 2026-10-09/10: GDS_SSO_STRATEGY=real broke
+# this exact round trip, only locally, because a previewed app's own pod
+# couldn't reach Preview App over the network to complete its half of the
+# OAuth2 dance. A plain curl with a cookie jar (so Set-Cookie's Domain is
+# respected across both hostnames involved) is the whole test - no login
+# form to script, since Preview App's own pod runs gds-sso's mock
+# strategy locally and signs straight in as the seeded test user.
+def check_routing_and_signon!(hostname)
+  Dir.mktmpdir do |dir|
+    jar = File.join(dir, "cookies")
+    body_file = File.join(dir, "body")
+    out, status = Open3.capture2(
+      "curl", "-sS", "-L", "--max-redirs", "10", "-c", jar, "-b", jar,
+      "-o", body_file, "-w", "%{http_code} %{url_effective}",
+      # Preview#hostname already includes the base domain.
+      "http://#{hostname}:#{EXTERNAL_PORT}/"
+    )
+    abort("Couldn't reach #{hostname} at all (is curl installed?)") unless status.success?
+
+    code, url = out.split(" ", 2)
+    # Landing on the right host isn't enough on its own: Preview App's own
+    # Rails app accepts any *.base_domain Host header too (config.hosts),
+    # so a request HostRouter fails to recognise still gets a 200 back -
+    # just from Preview App's own /previews page, under the wrong host,
+    # rather than from the preview it was actually meant to reach. Checking
+    # the body isn't Preview App's own index page is what actually tells
+    # the two apart.
+    ok = code.to_i.between?(200, 399) && URI(url.to_s).host == hostname && !File.read(body_file).include?("New preview")
+    abort("Routing/Signon check failed for #{hostname}: landed on #{url.inspect} (#{code})") unless ok
+
+    puts "OK  routing + Signon round trip to #{hostname} (#{code} #{url})"
+  end
+end
+
+# The other regression from this session: Asset Manager's own
+# MediaController redirecting a pod-to-pod request (e.g. Whitehall's own
+# worker reading an asset back) to its public, browser-only hostname
+# instead of PREVIEW_APP_INTERNAL_URL. Asset Manager runs standalone here
+# (it has no dependencies of its own) - creating an asset and reading it
+# straight back from inside its own pod, via its own internal Service
+# address rather than localhost, reproduces the exact request shape that
+# broke: requested_from_internal_host? has to recognise it, and whatever
+# it redirects to has to actually be reachable from inside the cluster.
+def check_asset_manager_internal_redirect!(preview_id)
+  pod = pod_name(namespace: "previews", selector: "govuk-preview-app/root-id=#{preview_id},govuk-preview-app/component=web")
+  abort("Couldn't find Asset Manager's own pod for preview #{preview_id}") if pod.empty?
+
+  internal_url = preview_app_runner(<<~RUBY).strip
+    preview = Preview.find(#{preview_id})
+    puts "http://\#{KubernetesRunner.new(preview).container_name}"
+  RUBY
+
+  script = <<~RUBY
+    require "net/http"
+    require "json"
+    require "base64"
+
+    png = Base64.decode64(#{Base64.encode64(TINY_PNG).inspect})
+    boundary = "smoketest"
+    body = "--\#{boundary}\\r\\n" \\
+      "Content-Disposition: form-data; name=\\"asset[file]\\"; filename=\\"smoke.png\\"\\r\\n" \\
+      "Content-Type: image/png\\r\\n\\r\\n\#{png}\\r\\n--\#{boundary}--\\r\\n"
+
+    create = Net::HTTP.start("localhost", 3000) do |http|
+      req = Net::HTTP::Post.new("/assets")
+      req["Authorization"] = "Bearer smoketest"
+      req["Content-Type"] = "multipart/form-data; boundary=\#{boundary}"
+      req.body = body
+      http.request(req)
+    end
+    abort("asset creation failed: \#{create.code} \#{create.body}") unless create.code == "201"
+
+    asset = JSON.parse(create.body)
+    uri = URI("#{internal_url}/media/\#{asset.fetch('id').split('/').last}/\#{asset.fetch('name')}")
+    # Uploads are processed asynchronously (Asset#state starts "unscanned" -
+    # see its own state_machine) - retry until the worker's caught up,
+    # rather than racing it.
+    fetch = nil
+    30.times do
+      fetch = Net::HTTP.start(uri.host, uri.port) { |http| http.request(Net::HTTP::Get.new(uri)) }
+      break if fetch.code != "404"
+
+      sleep 1
+    end
+
+    # A successful fetch is a redirect to the fake-S3 file (see
+    # proxy_to_s3_via_nginx) - the thing actually under test is *where*
+    # that redirect points, so follow it once more rather than treating
+    # the 3xx itself as success.
+    redirect_location = fetch["location"]
+    if fetch.code.start_with?("3") && redirect_location
+      redirect_uri = URI(redirect_location)
+      fetch = Net::HTTP.start(redirect_uri.host, redirect_uri.port) { |http| http.request(Net::HTTP::Get.new(redirect_uri)) }
+    end
+    puts({ code: fetch.code, location: redirect_location }.to_json)
+  RUBY
+
+  out, err, status = Open3.capture3(
+    "kubectl", "--context", CONTEXT, "-n", "previews", "exec", pod, "-c", "app", "--", "ruby", "-e", script
+  )
+  abort("Internal-redirect check failed to run:\n#{err}\n#{out}") unless status.success?
+
+  result = JSON.parse(out[/\{.*\}/])
+  unless result["code"] == "200"
+    abort("Internal-redirect check failed: Asset Manager returned #{result['code']} (Location: #{result['location'].inspect})")
+  end
+
+  puts "OK  Asset Manager served a real asset back to an internal, pod-to-pod request"
+end
+
+full = ARGV.delete("--full")
+abort("Usage: bin/smoke-test [--full]") unless ARGV.empty?
+
+unless `kind get clusters 2>/dev/null`.split("\n").include?("govuk-preview-app")
+  abort("The local kind cluster isn't running - run bin/kind-up first")
+end
+
+frontend_id = find_or_create_preview("frontend")
+frontend = wait_until_running(frontend_id)
+check_routing_and_signon!(frontend["hostname"])
+puts "    (preview ##{frontend_id} - left running, see /previews)"
+
+if full
+  asset_manager_id = find_or_create_preview("asset-manager")
+  wait_until_running(asset_manager_id)
+  check_asset_manager_internal_redirect!(asset_manager_id)
+  puts "    (preview ##{asset_manager_id} - left running, see /previews)"
+end
+
+puts "\nsmoke test passed#{' (--full)' if full}"
