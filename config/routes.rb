@@ -21,5 +21,9 @@ Rails.application.routes.draw do
     end
   end
 
+  # What previews have reserved, against the most they're allowed - see
+  # ResourceUsage.
+  resource :resources, only: :show
+
   root to: redirect("/previews")
 end

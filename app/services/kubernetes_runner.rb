@@ -57,7 +57,7 @@ class KubernetesRunner
     api = KubernetesApi.new
     api.get(api.path("v1", "services"), limit: 1)
     true
-  rescue KubernetesApi::Error, SystemCallError, IOError, OpenSSL::SSL::SSLError, Net::OpenTimeout
+  rescue KubernetesApi::Error, *KubernetesApi::CONNECTION_ERRORS
     false
   end
 

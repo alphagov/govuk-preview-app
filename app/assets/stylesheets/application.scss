@@ -74,3 +74,76 @@ $app-page-width: 1200px;
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+// How much of each quota limit previews have reserved, on the Resources
+// page - a meter whose fill turns orange, then red, as it fills (and says
+// so in words beside it). Drawn as SVG, since the app's Content Security
+// Policy rules out inline styles for the fill's width.
+.app-meter {
+  margin-bottom: govuk-spacing(5);
+}
+
+.app-meter__label {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: govuk-spacing(2);
+}
+
+.app-meter__value {
+  font-variant-numeric: tabular-nums;
+}
+
+.app-meter__tag {
+  margin-left: govuk-spacing(1);
+}
+
+.app-meter__bar {
+  display: block;
+}
+
+.app-meter--normal {
+  .app-meter__track { fill: govuk-colour("blue", $variant: "tint-80"); }
+  .app-meter__fill { fill: govuk-colour("blue"); }
+}
+
+// Orange's darker shade - its primary is under 3:1 against white.
+.app-meter--warning {
+  .app-meter__track { fill: govuk-colour("orange", $variant: "tint-80"); }
+  .app-meter__fill { fill: govuk-colour("orange", $variant: "shade-25"); }
+}
+
+.app-meter--danger {
+  .app-meter__track { fill: govuk-colour("red", $variant: "tint-80"); }
+  .app-meter__fill { fill: govuk-colour("red"); }
+}
+
+.app-resource-stack {
+  margin-bottom: govuk-spacing(6);
+}
+
+// The same column widths in every stack's table, so they line up down the
+// page - rather than each sizing itself to its own content. Not on narrow
+// screens, where there isn't the room to fix them.
+@include govuk-media-query($from: tablet) {
+  .app-resource-table .govuk-table {
+    table-layout: fixed;
+  }
+
+  .app-resource-table .govuk-table__header:nth-child(1) {
+    width: 31%;
+  }
+
+  .app-resource-table .govuk-table__header:nth-child(2) {
+    width: 15%;
+  }
+
+  // Shared parts have no Part column - their name takes its width too.
+  .app-resource-table--shared .govuk-table__header:nth-child(1) {
+    width: 46%;
+  }
+
+  .app-resource-table--shared .govuk-table__header:nth-child(2) {
+    width: auto;
+  }
+}
