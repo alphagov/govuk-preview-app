@@ -145,7 +145,7 @@ RSpec.describe GovukApps do
       expect(definition.worker_command).to eq(["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"])
       expect(definition.publicly_readable).to be(true)
       expect(definition.public_paths).to be_nil
-      expect(definition.env).to eq({})
+      expect(definition.env).to eq("DISABLE_SECURE_COOKIES" => "1")
     end
 
     it "parses smart-answers" do

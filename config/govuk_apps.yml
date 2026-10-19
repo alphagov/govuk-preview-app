@@ -486,3 +486,9 @@ places-manager:
     adapter: postgis
     image: imresamu/postgis:17-3.5
   worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
+  env:
+    # As for Whitehall and Publisher: without this, its session cookie is
+    # marked `secure` in production, so it's never set over our plain-HTTP
+    # entry point and every admin form submission (e.g. creating a
+    # service) fails CSRF verification.
+    DISABLE_SECURE_COOKIES: "1"
