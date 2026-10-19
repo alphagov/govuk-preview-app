@@ -1,6 +1,7 @@
-# One dedicated, never-shared database per preview - MySQL, Postgres or
-# MongoDB - as a single-replica StatefulSet with its own small persistent
-# volume and a Service of the same name - so the URL handed to the app's
+# One dedicated, never-shared database per preview - MySQL, Postgres (or
+# PostGIS, Postgres with spatial types) or MongoDB - as a single-replica
+# StatefulSet with its own small persistent volume and a Service of the
+# same name - so the URL handed to the app's
 # own pods (`<adapter>://<user>@<service name>/app_preview`, as
 # DATABASE_URL, or MONGODB_URI for Mongoid apps) resolves within the
 # namespace.
@@ -86,6 +87,11 @@ class KubernetesDatabaseRunner
     # instead, and refused.
     when "mysql2" then "mysql2://root:#{MYSQL_ROOT_PASSWORD}@#{container_name}/#{DATABASE_NAME}"
     when "postgresql" then "postgresql://postgres@#{container_name}/#{DATABASE_NAME}"
+    # postgis:// rather than postgresql:// - the URL's scheme decides the
+    # adapter Rails uses, overriding the app's own database.yml (see
+    # ConfigOverrides), and only activerecord-postgis-adapter's knows its
+    # spatial column types.
+    when "postgis" then "postgis://postgres@#{container_name}/#{DATABASE_NAME}"
     when "mongodb" then "mongodb://#{container_name}/#{DATABASE_NAME}"
     else raise DatabaseError, "Unknown database adapter: #{database.adapter}"
     end
@@ -204,7 +210,7 @@ private
         --table-open-cache=200
         --skip-name-resolve
       ]
-    when "postgresql"
+    when "postgresql", "postgis"
       %w[-c shared_buffers=16MB -c max_connections=40 -c work_mem=2MB]
     when "mongodb"
       # WiredTiger otherwise takes half the container's memory for its cache.
@@ -218,7 +224,7 @@ private
     case database.adapter
     when "mysql2"
       { "MYSQL_ROOT_PASSWORD" => MYSQL_ROOT_PASSWORD, "MYSQL_DATABASE" => DATABASE_NAME }
-    when "postgresql"
+    when "postgresql", "postgis"
       { "POSTGRES_HOST_AUTH_METHOD" => "trust", "POSTGRES_DB" => DATABASE_NAME, "PGDATA" => "#{VOLUME_MOUNT}/postgres" }
     when "mongodb"
       {} # No auth, and databases are created on first write.
@@ -228,7 +234,7 @@ private
   end
 
   def port
-    { "mysql2" => 3306, "postgresql" => 5432, "mongodb" => 27_017 }.fetch(database.adapter)
+    { "mysql2" => 3306, "postgresql" => 5432, "postgis" => 5432, "mongodb" => 27_017 }.fetch(database.adapter)
   end
 
   # Over TCP, not the Unix socket: both official images run a short-lived
@@ -237,6 +243,7 @@ private
   READY_COMMANDS = {
     "mysql2" => ["mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p#{MYSQL_ROOT_PASSWORD}", "--silent"],
     "postgresql" => ["pg_isready", "-U", "postgres", "-h", "127.0.0.1"],
+    "postgis" => ["pg_isready", "-U", "postgres", "-h", "127.0.0.1"],
     "mongodb" => ["mongosh", "--quiet", "--host", "127.0.0.1", "--eval", "db.adminCommand('ping').ok"],
   }.freeze
 
