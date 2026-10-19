@@ -93,6 +93,30 @@ RSpec.describe KubernetesDatabaseRunner do
     end
   end
 
+  context "with PostGIS" do
+    let(:preview) { create(:preview, app_name: "whitehall", branch: "postgis-branch") }
+    let(:runner) do
+      described_class.new(preview, GovukApps::Database.new(adapter: "postgis", image: "imresamu/postgis:17-3.5"), api:)
+        .tap { |runner| allow(runner).to receive(:pause) }
+    end
+
+    it "runs the same as Postgres, but hands the app a postgis:// DATABASE_URL" do
+      stub_applies(runner)
+
+      expect(runner.start!).to eq("postgis://postgres@#{runner.container_name}/app_preview")
+      expect(runner.env_var).to eq("DATABASE_URL")
+
+      container = applied_stateful_set.dig("spec", "template", "spec", "containers", 0)
+      env = container["env"].to_h { |e| [e["name"], e["value"]] }
+      expect(container["image"]).to eq("imresamu/postgis:17-3.5")
+      expect(container).not_to have_key("command")
+      expect(env).to include("POSTGRES_HOST_AUTH_METHOD" => "trust", "POSTGRES_DB" => "app_preview", "PGDATA" => "/var/lib/preview-data/postgres")
+      expect(container["args"]).to eq(%w[-c shared_buffers=16MB -c max_connections=40 -c work_mem=2MB])
+      expect(container["ports"].first["containerPort"]).to eq(5432)
+      expect(container.dig("readinessProbe", "exec", "command")).to eq(["pg_isready", "-U", "postgres", "-h", "127.0.0.1"])
+    end
+  end
+
   context "with MongoDB" do
     let(:preview) { create(:preview, app_name: "whitehall", branch: "mongo-branch") }
     let(:runner) do
