@@ -466,3 +466,23 @@ service-manual-publisher:
     image: postgres:17
   dependencies:
     - publishing-api
+
+# Its admin is how datasets get in: a CSV upload, processed by its worker
+# (ProcessCsvDataWorker). Places are geocoded through Locations API, which
+# isn't run here - so on its own, only places with their own lat/lng
+# columns get a location. Publicly readable so its admin is reachable at a
+# dependency preview's own URL too (it needs POSTs, so no public_paths) -
+# still only behind the preview-access Signon login and gds-sso's mock
+# sign-in, as its seeded user (a GDS Editor).
+places-manager:
+  memory:
+    request: 224Mi
+    limit: 512Mi
+  repo_url: https://github.com/alphagov/places-manager.git
+  port_env_var: PORT
+  publicly_readable: true
+  database:
+    # postgis/postgis has no arm64 image; this is a multi-arch build of it.
+    adapter: postgis
+    image: imresamu/postgis:17-3.5
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
