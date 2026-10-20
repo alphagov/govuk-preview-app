@@ -67,6 +67,14 @@
 # that would have used a left-out dependency is pointed at a stand-in that
 # accepts and discards everything instead (kubernetes/previews/sink.yaml).
 #
+# `top_level_full_stack_dependencies` are like `full_stack_dependencies`,
+# but only started when this app is the stack's top-level preview - built
+# after them, in order. Below the top, they're left out (pointed at the
+# sink) even in a full stack: e.g. Frontend's postcode lookups (Locations
+# API, Local Links Manager and Places Manager) are part of what a full
+# Frontend preview is for, but not of a Whitehall preview's full stack,
+# which runs Frontend just to view published pages.
+#
 # `memory` sets what each of the app's pods (web, worker and one-off tasks)
 # requests and is limited to - and `database: memory:`, its database's.
 # Requests are what Kubernetes schedules by and charges the previews quota
@@ -101,6 +109,13 @@ frontend:
   repo_url: https://github.com/alphagov/frontend.git
   port_env_var: PORT
   publicly_readable: true
+  # For its postcode pages (local transactions, licences, find your
+  # council, find nearest places). Places Manager comes last, so it's
+  # pointed at the other two as well.
+  top_level_full_stack_dependencies:
+    - locations-api
+    - local-links-manager
+    - places-manager
   env:
     PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
 
@@ -495,8 +510,8 @@ local-links-manager:
 
 # Its admin is how datasets get in: a CSV upload, processed by its worker
 # (ProcessCsvDataWorker). Places are geocoded through Locations API, which
-# isn't run here - so on its own, only places with their own lat/lng
-# columns get a location. Publicly readable so its admin is reachable at a
+# only runs alongside it in Frontend's full stack - so on its own, only
+# places with their own lat/lng columns get a location. Publicly readable so its admin is reachable at a
 # dependency preview's own URL too (it needs POSTs, so no public_paths) -
 # still only behind the preview-access Signon login and gds-sso's mock
 # sign-in, as its seeded user (a GDS Editor).

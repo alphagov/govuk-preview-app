@@ -141,8 +141,10 @@ private
     Digest::SHA256.hexdigest(env.sort.to_h.to_json)
   end
 
+  # A full-stack-only dependency in a core stack - or a top-level-only one
+  # anywhere below the top (e.g. Frontend's, under Whitehall).
   def left_out?(app, dep_name)
-    app.full_stack_dependencies.include?(dep_name) && !preview.root.full_stack
+    !app.dependencies_for(full_stack: preview.root.full_stack, top_level: preview.parent_id.nil?).include?(dep_name)
   end
 
   # Returns [env passed on to later siblings and the parent, env for this
@@ -150,7 +152,7 @@ private
   def build_dependencies!(app, inherited_env)
     own_env = {}
 
-    propagated_env = (app.dependencies + app.full_stack_dependencies).each_with_object({}) do |dep_name, env|
+    propagated_env = app.dependencies_for(full_stack: true, top_level: true).each_with_object({}) do |dep_name, env|
       if left_out?(app, dep_name)
         own_env["PLEK_SERVICE_#{dep_name.upcase.tr('-', '_')}_URI"] = SINK_URI
         next

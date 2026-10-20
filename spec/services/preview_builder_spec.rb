@@ -33,7 +33,7 @@ RSpec.describe PreviewBuilder do
 
   describe "#build!" do
     it "does nothing if the preview is already running with the same dependency addresses" do
-      preview = create(:preview, app_name: "frontend", branch: "my-branch", status: :running,
+      preview = create(:preview, app_name: "collections", branch: "my-branch", status: :running,
                                  env_digest: Digest::SHA256.hexdigest({}.to_json))
 
       described_class.new(preview).build!
@@ -61,14 +61,14 @@ RSpec.describe PreviewBuilder do
       expect(ImageResolver).not_to have_received(:new)
     end
 
-    context "with an app that has no dependencies or database (frontend)" do
+    context "with an app that has no dependencies or database (collections)" do
       it "resolves the branch's prebuilt image, prepares and starts it, and marks the preview running" do
-        preview = create(:preview, app_name: "frontend", branch: "my-branch")
+        preview = create(:preview, app_name: "collections", branch: "my-branch")
 
         described_class.new(preview).build!
 
-        expect(ImageResolver).to have_received(:new).with(GovukApps.find("frontend"), "my-branch")
-        expect(KubernetesRunner).to have_received(:new).with(preview, image: "ghcr.io/alphagov/govuk/frontend:my-branch")
+        expect(ImageResolver).to have_received(:new).with(GovukApps.find("collections"), "my-branch")
+        expect(KubernetesRunner).to have_received(:new).with(preview, image: "ghcr.io/alphagov/govuk/collections:my-branch")
         expect(runners[preview]).to have_received(:prepare!)
         expect(runners[preview]).to have_received(:start!).with(extra_env: {})
         expect(preview.reload).to have_attributes(status: "running", container_id: "deploy-uid")
@@ -334,6 +334,70 @@ RSpec.describe PreviewBuilder do
 
         expect(runners[preview]).to have_received(:start!).with(
           extra_env: hash_excluding("GOVUK_WEBSITE_ROOT", "PLEK_SERVICE_DRAFT_ORIGIN_URI"),
+        )
+      end
+    end
+
+    context "with top_level_full_stack_dependencies (frontend -> locations-api, local-links-manager, places-manager)" do
+      before { stub_databases }
+
+      it "builds them, in order, for a full stack whose top-level app declares them" do
+        preview = create(:preview, app_name: "frontend", branch: "my-branch", full_stack: true)
+
+        described_class.new(preview).build!
+
+        expect(preview.reload.tree.drop(1).map(&:app_name)).to eq(%w[locations-api local-links-manager places-manager])
+        expect(preview.status).to eq("running")
+      end
+
+      it "points places-manager at the two built before it, and frontend at all three" do
+        preview = create(:preview, app_name: "frontend", branch: "my-branch", full_stack: true)
+
+        described_class.new(preview).build!
+
+        locations_api, local_links_manager, places_manager = preview.reload.tree.drop(1)
+        expect(runners[places_manager]).to have_received(:start!).with(
+          extra_env: hash_including(
+            "PLEK_SERVICE_LOCATIONS_API_URI" => internal_uri(locations_api),
+            "PLEK_SERVICE_LOCAL_LINKS_MANAGER_URI" => internal_uri(local_links_manager),
+          ),
+        )
+        expect(runners[preview]).to have_received(:start!).with(
+          extra_env: hash_including(
+            "PLEK_SERVICE_LOCATIONS_API_URI" => internal_uri(locations_api),
+            "PLEK_SERVICE_LOCAL_LINKS_MANAGER_URI" => internal_uri(local_links_manager),
+            "PLEK_SERVICE_PLACES_MANAGER_URI" => internal_uri(places_manager),
+          ),
+        )
+      end
+
+      it "leaves them out of a core stack, pointing the app at the sink instead" do
+        preview = create(:preview, app_name: "frontend", branch: "my-branch")
+
+        described_class.new(preview).build!
+
+        expect(preview.reload.dependents).to be_empty
+        expect(runners[preview]).to have_received(:start!).with(
+          extra_env: hash_including("PLEK_SERVICE_PLACES_MANAGER_URI" => "http://sink"),
+        )
+      end
+
+      it "leaves them out below the top of a full stack - e.g. Whitehall's Frontend - pointing it at the sink instead" do
+        preview = create(:preview, app_name: "whitehall", branch: "my-branch", full_stack: true)
+
+        described_class.new(preview).build!
+
+        frontend = preview.reload.dependents.find_by!(app_name: "frontend")
+        expect(frontend.dependents).to be_empty
+        expect(runners[frontend]).to have_received(:start!).with(
+          extra_env: hash_including(
+            "PLEK_SERVICE_LOCATIONS_API_URI" => "http://sink",
+            "PLEK_SERVICE_LOCAL_LINKS_MANAGER_URI" => "http://sink",
+            "PLEK_SERVICE_PLACES_MANAGER_URI" => "http://sink",
+          ),
+        )
+        expect(runners[preview]).to have_received(:start!).with(
+          extra_env: hash_excluding("PLEK_SERVICE_PLACES_MANAGER_URI"),
         )
       end
     end

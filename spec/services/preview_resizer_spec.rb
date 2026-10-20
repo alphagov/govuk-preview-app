@@ -50,6 +50,25 @@ RSpec.describe PreviewResizer do
     end
   end
 
+  context "when removing a full stack of top_level_full_stack_dependencies" do
+    let(:root) { create(:preview, app_name: "frontend", branch: "my-branch", status: :running, full_stack: true) }
+
+    before do
+      %w[locations-api local-links-manager places-manager].each do |app_name|
+        create(:preview, app_name:, branch: "main", parent: root, status: :running)
+      end
+    end
+
+    it "destroys them too" do
+      destroyed = []
+      allow(PreviewDestroyer).to receive(:new) { |preview| instance_double(PreviewDestroyer, destroy!: destroyed << preview.app_name) }
+
+      described_class.new(root).resize!(full_stack: false)
+
+      expect(destroyed).to contain_exactly("locations-api", "local-links-manager", "places-manager")
+    end
+  end
+
   it "does nothing to a preview that isn't running" do
     root = create(:preview, app_name: "whitehall", branch: "my-branch", status: :sleeping)
 

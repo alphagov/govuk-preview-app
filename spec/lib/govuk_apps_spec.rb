@@ -230,6 +230,11 @@ RSpec.describe GovukApps do
       )
     end
 
+    it "includes only the top-level app's own top_level_full_stack_dependencies" do
+      expect(described_class.dependency_tree("frontend")).to eq(%w[locations-api local-links-manager places-manager])
+      expect(described_class.dependency_tree("frontend", full_stack: false)).to eq([])
+    end
+
     it "leaves out full-stack-only dependencies, at any depth, for a core stack" do
       expect(described_class.dependency_tree("whitehall", full_stack: false)).to eq(%w[publishing-api])
     end
@@ -258,9 +263,14 @@ RSpec.describe GovukApps do
       expect(described_class.full_stack_option?("content-store")).to be(false)
     end
 
+    it "offers a full stack to an app with only top_level_full_stack_dependencies - e.g. Frontend's postcode lookups" do
+      expect(described_class.full_stack_extras("frontend")).to eq(%w[locations-api local-links-manager places-manager])
+      expect(described_class.full_stack_option?("frontend")).to be(true)
+    end
+
     it "offers no full stack for an app whose full stack is no different" do
-      expect(described_class.full_stack_extras("frontend")).to eq([])
-      expect(described_class.full_stack_option?("frontend")).to be(false)
+      expect(described_class.full_stack_extras("draft-frontend")).to eq([])
+      expect(described_class.full_stack_option?("draft-frontend")).to be(false)
     end
   end
 end

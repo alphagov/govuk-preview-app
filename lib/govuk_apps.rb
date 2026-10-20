@@ -12,8 +12,17 @@ module GovukApps
   Definition = Struct.new(
     :name, :repo_url, :port_env_var, :env, :dependencies, :database, :setup_tasks,
     :worker_command, :publicly_readable, :env_aliases, :full_stack_dependencies, :resync_tasks, :memory,
-    :shared_volumes, :self_url_env, :public_paths, keyword_init: true
-  )
+    :shared_volumes, :self_url_env, :public_paths, :top_level_full_stack_dependencies, keyword_init: true
+  ) do
+    # What a preview of this app starts, in build order: in a full stack,
+    # its full_stack_dependencies too - and, only as the stack's top-level
+    # preview, its top_level_full_stack_dependencies.
+    def dependencies_for(full_stack:, top_level:)
+      return dependencies unless full_stack
+
+      dependencies + full_stack_dependencies + (top_level ? top_level_full_stack_dependencies : [])
+    end
+  end
 
   def self.all
     @all ||= YAML.load_file(Rails.root.join("config/govuk_apps.yml")).map do |name, attrs|
@@ -46,6 +55,7 @@ module GovukApps
         shared_volumes: attrs.fetch("shared_volumes", {}),
         self_url_env: attrs.fetch("self_url_env", []),
         public_paths: attrs["public_paths"],
+        top_level_full_stack_dependencies: attrs.fetch("top_level_full_stack_dependencies", []),
       )
     end
   end
@@ -62,22 +72,25 @@ module GovukApps
   # depth, in build order - e.g. whitehall's full stack -> publishing-api,
   # content-store, draft-content-store, frontend, draft-frontend; its core
   # stack -> just publishing-api. Used to work out how much room a whole
-  # preview stack needs (PreviewCapacity).
-  def self.dependency_tree(name, full_stack: true)
+  # preview stack needs (PreviewCapacity). `name` is the stack's top-level
+  # app, so only its own top_level_full_stack_dependencies are included -
+  # e.g. not Frontend's, in Whitehall's full stack.
+  def self.dependency_tree(name, full_stack: true, top_level: true)
     app = find(name)
     return [] unless app
 
-    direct = full_stack ? app.dependencies + app.full_stack_dependencies : app.dependencies
-    direct.flat_map { |dep| [dep, *dependency_tree(dep, full_stack:)] }
+    app.dependencies_for(full_stack:, top_level:).flat_map { |dep| [dep, *dependency_tree(dep, full_stack:, top_level: false)] }
   end
 
   # Whether a preview of `name` offers a full stack: only if the app itself
-  # declares `full_stack_dependencies`. (Once offered, the full stack also
-  # includes its dependencies' own - e.g. Whitehall's includes Publishing
-  # API's Content Stores. But an app that just depends on Publishing API
-  # doesn't get a full stack of its own from that.)
+  # declares `full_stack_dependencies` or `top_level_full_stack_dependencies`.
+  # (Once offered, the full stack also includes its dependencies' own
+  # `full_stack_dependencies` - e.g. Whitehall's includes Publishing API's
+  # Content Stores. But an app that just depends on Publishing API doesn't
+  # get a full stack of its own from that.)
   def self.full_stack_option?(name)
-    find(name)&.full_stack_dependencies.present?
+    app = find(name)
+    app.present? && (app.full_stack_dependencies + app.top_level_full_stack_dependencies).any?
   end
 
   # What a preview of `name`'s full stack runs on top of its core stack.
