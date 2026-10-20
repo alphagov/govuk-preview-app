@@ -145,7 +145,12 @@ RSpec.describe GovukApps do
       expect(definition.worker_command).to eq(["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"])
       expect(definition.publicly_readable).to be(true)
       expect(definition.public_paths).to be_nil
-      expect(definition.env).to eq("DISABLE_SECURE_COOKIES" => "1")
+      expect(definition.env).to eq(
+        "DISABLE_SECURE_COOKIES" => "1",
+        "GOVUK_WEBSITE_ROOT" => "https://www.gov.uk",
+        "PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api",
+        "PLEK_SERVICE_SEARCH_API_URI" => "https://www.gov.uk/api",
+      )
     end
 
     it "parses smart-answers" do

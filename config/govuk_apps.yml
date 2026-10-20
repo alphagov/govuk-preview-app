@@ -492,3 +492,10 @@ places-manager:
     # entry point and every admin form submission (e.g. creating a
     # service) fails CSRF verification.
     DISABLE_SECURE_COOKIES: "1"
+    # A service's page links to the GOV.UK page that uses it, found by
+    # searching for `place` pages and looking each one up in the Content
+    # Store - read-only, so the live site's own APIs will do, as for
+    # Collections and Finder Frontend.
+    GOVUK_WEBSITE_ROOT: https://www.gov.uk
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+    PLEK_SERVICE_SEARCH_API_URI: https://www.gov.uk/api
