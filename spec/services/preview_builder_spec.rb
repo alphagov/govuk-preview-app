@@ -346,7 +346,7 @@ RSpec.describe PreviewBuilder do
 
         described_class.new(preview).build!
 
-        expect(preview.reload.tree.drop(1).map(&:app_name)).to eq(%w[locations-api local-links-manager places-manager])
+        expect(preview.reload.dependents.order(:id).map(&:app_name)).to eq(%w[locations-api local-links-manager places-manager])
         expect(preview.status).to eq("running")
       end
 
@@ -355,7 +355,9 @@ RSpec.describe PreviewBuilder do
 
         described_class.new(preview).build!
 
-        locations_api, local_links_manager, places_manager = preview.reload.tree.drop(1)
+        locations_api, local_links_manager, places_manager = %w[locations-api local-links-manager places-manager].map do |app_name|
+          preview.reload.dependents.find_by!(app_name:)
+        end
         expect(runners[places_manager]).to have_received(:start!).with(
           extra_env: hash_including(
             "PLEK_SERVICE_LOCATIONS_API_URI" => internal_uri(locations_api),
