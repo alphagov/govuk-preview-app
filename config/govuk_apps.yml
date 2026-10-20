@@ -486,3 +486,6 @@ places-manager:
     # entry point and every admin form submission (e.g. creating a
     # service) fails CSRF verification.
     DISABLE_SECURE_COOKIES: "1"
+    GOVUK_WEBSITE_ROOT: https://www.gov.uk
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+    PLEK_SERVICE_SEARCH_API_URI: https://www.gov.uk/api
