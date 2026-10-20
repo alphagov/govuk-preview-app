@@ -13,6 +13,7 @@ gem "pg", "~> 1.1"
 gem "plek"
 gem "puma", ">= 5.0"
 gem "rack-proxy"
+gem "sentry-sidekiq"
 gem "sprockets-rails"
 
 group :development, :test do
