@@ -467,6 +467,37 @@ service-manual-publisher:
   dependencies:
     - publishing-api
 
+# Postcode lookups, for Frontend and Places Manager. Only knows the
+# postcodes its seeds create (E1 8QS, WV14 8TU, AL1 1HE and AL1 1AA) - any
+# other is looked up in OS Places, which needs credentials it doesn't
+# have here. Its worker only refreshes postcodes from OS Places and ONS
+# imports, so it isn't run.
+locations-api:
+  repo_url: https://github.com/alphagov/locations-api.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:18
+
+# Local authorities and their links to council services, for Frontend and
+# Places Manager. Only its local authorities are imported (from a CSV in
+# its own repo) - its services and links come from external sites and
+# Publishing API, so pages that need a council's link for a service find
+# none.
+local-links-manager:
+  repo_url: https://github.com/alphagov/local-links-manager.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:18
+  setup_tasks:
+    - import:local_authorities:import_all
+  env:
+    # Saving a local authority publishes it to Publishing API, which isn't
+    # run alongside it. Without this, the import stops at the first one -
+    # quietly, as it logs the error rather than failing.
+    PLEK_SERVICE_PUBLISHING_API_URI: http://sink
+
 places-manager:
   memory:
     request: 224Mi

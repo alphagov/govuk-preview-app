@@ -13,7 +13,8 @@ RSpec.describe GovukApps do
       expect(described_class.app_names).to include(
         "frontend", "draft-frontend", "content-store", "draft-content-store", "publishing-api", "whitehall",
         "govuk-publishing-components", "govuk-content-publishing-guidance",
-        "collections", "feedback", "finder-frontend", "smart-answers", "places-manager"
+        "collections", "feedback", "finder-frontend", "smart-answers", "places-manager",
+        "locations-api", "local-links-manager"
       )
     end
   end
@@ -155,6 +156,23 @@ RSpec.describe GovukApps do
         "PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api",
         "PLEK_SERVICE_SEARCH_API_URI" => "https://www.gov.uk/api",
       )
+    end
+
+    it "parses locations-api" do
+      definition = described_class.find("locations-api")
+
+      expect(definition.repo_url).to eq("https://github.com/alphagov/locations-api.git")
+      expect(definition.database.adapter).to eq("postgresql")
+      expect(definition.worker_command).to be_nil
+    end
+
+    it "parses local-links-manager" do
+      definition = described_class.find("local-links-manager")
+
+      expect(definition.repo_url).to eq("https://github.com/alphagov/local-links-manager.git")
+      expect(definition.database.adapter).to eq("postgresql")
+      expect(definition.setup_tasks).to eq(%w[import:local_authorities:import_all])
+      expect(definition.env).to eq("PLEK_SERVICE_PUBLISHING_API_URI" => "http://sink")
     end
 
     it "parses smart-answers" do
