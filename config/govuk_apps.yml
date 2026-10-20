@@ -507,6 +507,11 @@ local-links-manager:
     image: postgres:18
   setup_tasks:
     - import:local_authorities:import_all
+  env:
+    # Saving a local authority publishes it to Publishing API, which isn't
+    # run alongside it. Without this, the import stops at the first one -
+    # quietly, as it logs the error rather than failing.
+    PLEK_SERVICE_PUBLISHING_API_URI: http://sink
 
 # Its admin is how datasets get in: a CSV upload, processed by its worker
 # (ProcessCsvDataWorker). Places are geocoded through Locations API, which

@@ -168,6 +168,7 @@ RSpec.describe GovukApps do
       expect(definition.repo_url).to eq("https://github.com/alphagov/local-links-manager.git")
       expect(definition.database.adapter).to eq("postgresql")
       expect(definition.setup_tasks).to eq(%w[import:local_authorities:import_all])
+      expect(definition.env).to eq("PLEK_SERVICE_PUBLISHING_API_URI" => "http://sink")
     end
 
     it "parses smart-answers" do
