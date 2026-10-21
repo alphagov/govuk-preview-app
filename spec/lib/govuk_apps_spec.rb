@@ -13,7 +13,7 @@ RSpec.describe GovukApps do
       expect(described_class.app_names).to include(
         "frontend", "draft-frontend", "content-store", "draft-content-store", "publishing-api", "whitehall",
         "govuk-publishing-components", "govuk-content-publishing-guidance",
-        "collections", "feedback", "finder-frontend", "smart-answers"
+        "collections", "feedback", "finder-frontend", "smart-answers", "places-manager"
       )
     end
   end
@@ -134,6 +134,22 @@ RSpec.describe GovukApps do
         "PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api",
         "PLEK_SERVICE_SEARCH_API_URI" => "https://www.gov.uk/api",
         "PLEK_SERVICE_WHITEHALL_FRONTEND_URI" => "https://www.gov.uk",
+      )
+    end
+
+    it "parses places-manager" do
+      definition = described_class.find("places-manager")
+
+      expect(definition.repo_url).to eq("https://github.com/alphagov/places-manager.git")
+      expect(definition.database.adapter).to eq("postgis")
+      expect(definition.worker_command).to eq(["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"])
+      expect(definition.publicly_readable).to be(true)
+      expect(definition.public_paths).to be_nil
+      expect(definition.env).to eq(
+        "DISABLE_SECURE_COOKIES" => "1",
+        "GOVUK_WEBSITE_ROOT" => "https://www.gov.uk",
+        "PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api",
+        "PLEK_SERVICE_SEARCH_API_URI" => "https://www.gov.uk/api",
       )
     end
 

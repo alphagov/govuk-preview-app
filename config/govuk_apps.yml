@@ -466,3 +466,26 @@ service-manual-publisher:
     image: postgres:17
   dependencies:
     - publishing-api
+
+places-manager:
+  memory:
+    request: 224Mi
+    limit: 512Mi
+  repo_url: https://github.com/alphagov/places-manager.git
+  port_env_var: PORT
+  publicly_readable: true
+  database:
+    # postgis/postgis has no arm64 image; this is a multi-arch build of it
+    # as used in govuk-docker: https://github.com/alphagov/govuk-docker/blob/ff33344f07e4033d63798cc9ade99712887adff9/docker-compose.yml#L66-L73
+    adapter: postgis
+    image: kartoza/postgis:18-3.6
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
+  env:
+    # As for Whitehall and Publisher: without this, its session cookie is
+    # marked `secure` in production, so it's never set over our plain-HTTP
+    # entry point and every admin form submission (e.g. creating a
+    # service) fails CSRF verification.
+    DISABLE_SECURE_COOKIES: "1"
+    GOVUK_WEBSITE_ROOT: https://www.gov.uk
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+    PLEK_SERVICE_SEARCH_API_URI: https://www.gov.uk/api
