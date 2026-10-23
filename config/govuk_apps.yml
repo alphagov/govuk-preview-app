@@ -475,10 +475,11 @@ places-manager:
   port_env_var: PORT
   publicly_readable: true
   database:
-    # postgis/postgis has no arm64 image; this is a multi-arch build of it
-    # as used in govuk-docker: https://github.com/alphagov/govuk-docker/blob/ff33344f07e4033d63798cc9ade99712887adff9/docker-compose.yml#L66-L73
+    # postgis/postgis has no arm64 image; this is a multi-arch build of it.
+    # Not kartoza/postgis, as govuk-docker uses: its entrypoint needs root,
+    # and its own env vars for the database, user and data directory.
     adapter: postgis
-    image: kartoza/postgis:18-3.6
+    image: imresamu/postgis:18-3.6
   worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
   env:
     # As for Whitehall and Publisher: without this, its session cookie is

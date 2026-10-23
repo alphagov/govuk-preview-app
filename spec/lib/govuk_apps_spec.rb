@@ -142,6 +142,10 @@ RSpec.describe GovukApps do
 
       expect(definition.repo_url).to eq("https://github.com/alphagov/places-manager.git")
       expect(definition.database.adapter).to eq("postgis")
+      # Built on the official postgres image, whose entrypoint runs as the
+      # database pod's non-root user and honours KubernetesDatabaseRunner's
+      # env and args (unlike e.g. kartoza/postgis, which needs root).
+      expect(definition.database.image).to eq("imresamu/postgis:18-3.6")
       expect(definition.worker_command).to eq(["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"])
       expect(definition.publicly_readable).to be(true)
       expect(definition.public_paths).to be_nil
