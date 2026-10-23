@@ -122,10 +122,11 @@ RSpec.describe "Previews" do
       page = Capybara::Node::Simple.new(response.body)
       expect(page.all("input[type=radio][name='preview[app_name]']").map(&:value)).to eq(GovukApps.app_names.sort)
       expect(page.all("input[type=checkbox]").map { |box| box[:name] }).to contain_exactly(
-        "preview[full_stack_for][whitehall]", "preview[full_stack_for][publishing-api]"
+        "preview[full_stack_for][whitehall]", "preview[full_stack_for][publishing-api]", "preview[full_stack_for][frontend]"
       )
       expect(page.find("#preview_full_stack_whitehall").text).to include("content-store, draft-content-store, asset-manager, frontend, and draft-frontend")
       expect(page.find("#preview_full_stack_publishing_api").text).not_to include("frontend")
+      expect(page.find("#preview_full_stack_frontend").text).to include("locations-api, local-links-manager, and places-manager")
     end
 
     it "only mentions local images when they're enabled" do
@@ -202,7 +203,7 @@ RSpec.describe "Previews" do
     it "offers adding or removing the full stack only for running apps that have one" do
       create(:preview, app_name: "whitehall", branch: "core-one", status: :running)
       create(:preview, app_name: "whitehall", branch: "full-one", status: :running, full_stack: true)
-      create(:preview, app_name: "frontend", branch: "no-extras", status: :running)
+      create(:preview, app_name: "collections", branch: "no-extras", status: :running)
 
       get previews_path
 
@@ -215,9 +216,9 @@ RSpec.describe "Previews" do
     end
 
     it "offers only the buttons that apply to each preview" do
-      create(:preview, app_name: "frontend", branch: "running-one", status: :running)
-      create(:preview, app_name: "frontend", branch: "sleeping-one", status: :sleeping)
-      create(:preview, app_name: "frontend", branch: "failed-one", status: :failed)
+      create(:preview, app_name: "collections", branch: "running-one", status: :running)
+      create(:preview, app_name: "collections", branch: "sleeping-one", status: :sleeping)
+      create(:preview, app_name: "collections", branch: "failed-one", status: :failed)
 
       get previews_path
 

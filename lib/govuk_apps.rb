@@ -9,9 +9,13 @@ module GovukApps
   TRUSTED_GITHUB_ORG = "alphagov".freeze
 
   Database = Struct.new(:adapter, :image, :memory, keyword_init: true)
+  # See `dependencies` in config/govuk_apps.yml.
+  Dependency = Struct.new(
+    :app, :full_stack_mode_only, :include_its_full_stack_dependencies_when_running_in_full_stack_mode, keyword_init: true
+  )
   Definition = Struct.new(
     :name, :repo_url, :port_env_var, :env, :dependencies, :database, :setup_tasks,
-    :worker_command, :publicly_readable, :env_aliases, :full_stack_dependencies, :resync_tasks, :memory,
+    :worker_command, :publicly_readable, :env_aliases, :resync_tasks, :memory,
     :shared_volumes, :self_url_env, :public_paths, keyword_init: true
   )
 
@@ -34,13 +38,19 @@ module GovukApps
         repo_url: repo_url,
         port_env_var: attrs.fetch("port_env_var"),
         env: attrs.fetch("env", {}),
-        dependencies: attrs.fetch("dependencies", []),
+        dependencies: attrs.fetch("dependencies", []).map do |dependency|
+          Dependency.new(
+            app: dependency.fetch("app"),
+            full_stack_mode_only: dependency.fetch("full_stack_mode_only", false),
+            include_its_full_stack_dependencies_when_running_in_full_stack_mode:
+              dependency.fetch("include_its_full_stack_dependencies_when_running_in_full_stack_mode", false),
+          )
+        end,
         database: database,
         setup_tasks: attrs.fetch("setup_tasks", []),
         worker_command: attrs["worker_command"],
         publicly_readable: attrs.fetch("publicly_readable", false),
         env_aliases: attrs.fetch("env_aliases", {}),
-        full_stack_dependencies: attrs.fetch("full_stack_dependencies", []),
         resync_tasks: attrs.fetch("resync_tasks", []),
         memory: attrs["memory"],
         shared_volumes: attrs.fetch("shared_volumes", {}),
@@ -62,22 +72,24 @@ module GovukApps
   # depth, in build order - e.g. whitehall's full stack -> publishing-api,
   # content-store, draft-content-store, frontend, draft-frontend; its core
   # stack -> just publishing-api. Used to work out how much room a whole
-  # preview stack needs (PreviewCapacity).
+  # preview stack needs (PreviewCapacity). Mirrors
+  # PreviewBuilder#build_dependencies!.
   def self.dependency_tree(name, full_stack: true)
     app = find(name)
     return [] unless app
 
-    direct = full_stack ? app.dependencies + app.full_stack_dependencies : app.dependencies
-    direct.flat_map { |dep| [dep, *dependency_tree(dep, full_stack:)] }
+    app.dependencies.reject { |dep| dep.full_stack_mode_only && !full_stack }.flat_map do |dep|
+      [dep.app, *dependency_tree(dep.app, full_stack: full_stack && dep.include_its_full_stack_dependencies_when_running_in_full_stack_mode)]
+    end
   end
 
   # Whether a preview of `name` offers a full stack: only if the app itself
-  # declares `full_stack_dependencies`. (Once offered, the full stack also
-  # includes its dependencies' own - e.g. Whitehall's includes Publishing
-  # API's Content Stores. But an app that just depends on Publishing API
-  # doesn't get a full stack of its own from that.)
+  # declares a `full_stack_mode_only` dependency. (Once offered, the full
+  # stack can also include its dependencies' own - e.g. Whitehall's includes
+  # Publishing API's Content Stores. But an app that just depends on
+  # Publishing API doesn't get a full stack of its own from that.)
   def self.full_stack_option?(name)
-    find(name)&.full_stack_dependencies.present?
+    find(name)&.dependencies&.any?(&:full_stack_mode_only) || false
   end
 
   # What a preview of `name`'s full stack runs on top of its core stack.

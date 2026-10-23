@@ -96,7 +96,7 @@ RSpec.describe KubernetesDatabaseRunner do
   context "with PostGIS" do
     let(:preview) { create(:preview, app_name: "whitehall", branch: "postgis-branch") }
     let(:runner) do
-      described_class.new(preview, GovukApps::Database.new(adapter: "postgis", image: "kartoza/postgis:18-3.6"), api:)
+      described_class.new(preview, GovukApps::Database.new(adapter: "postgis", image: "imresamu/postgis:18-3.6"), api:)
         .tap { |runner| allow(runner).to receive(:pause) }
     end
 
@@ -108,7 +108,7 @@ RSpec.describe KubernetesDatabaseRunner do
 
       container = applied_stateful_set.dig("spec", "template", "spec", "containers", 0)
       env = container["env"].to_h { |e| [e["name"], e["value"]] }
-      expect(container["image"]).to eq("kartoza/postgis:18-3.6")
+      expect(container["image"]).to eq("imresamu/postgis:18-3.6")
       expect(container).not_to have_key("command")
       expect(env).to include("POSTGRES_HOST_AUTH_METHOD" => "trust", "POSTGRES_DB" => "app_preview", "PGDATA" => "/var/lib/preview-data/postgres")
       expect(container.dig("readinessProbe", "exec", "command")).to eq(["pg_isready", "-U", "postgres", "-h", "127.0.0.1"])
