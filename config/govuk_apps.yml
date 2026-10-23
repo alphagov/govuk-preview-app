@@ -9,15 +9,32 @@
 # client, via Plek) at the real GOV.UK service instead of running a preview
 # of it.
 #
-# `dependencies` names other apps in this manifest that must run as their
+# `dependencies` lists other apps in this manifest that must run as their
 # own real, dedicated preview (never shared across parents) before this app
 # starts - e.g. Whitehall needs a real, writable Publishing API, not the
-# real GOV.UK one. See PreviewBuilder. Order matters: each dependency can
-# see the resolved PLEK_SERVICE_*_URI of every dependency declared *before*
-# it in the same list (so Whitehall's `frontend` dependency, declared after
-# `publishing-api`, inherits the real local Content Store address that
-# publishing-api's own `content-store` dependency resolved - not frontend's
-# own static, real-GOV.UK default below).
+# real GOV.UK one. See PreviewBuilder. Each is an `app`, plus:
+#
+# - `full_stack_mode_only` (default false): only started when a preview
+#   asks for its full stack (Preview#full_stack). For seeing an app's
+#   output end to end (e.g. Whitehall's Frontends, to view published and
+#   draft pages; or Publishing API's Content Stores), never for something
+#   the app interacts with directly: e.g. Publishing API always runs with
+#   Whitehall, since its responses (validation errors and all) are part of
+#   what a Whitehall preview is for. Otherwise, the app is pointed at a
+#   stand-in that accepts and discards everything instead
+#   (kubernetes/previews/sink.yaml).
+# - `include_its_full_stack_dependencies_when_running_in_full_stack_mode`
+#   (default false): in a full stack, also start this dependency's own
+#   `full_stack_mode_only` dependencies - e.g. Whitehall's Publishing API's
+#   Content Stores, for its Frontends to read. Otherwise they're pointed at
+#   the sink.
+#
+# Order matters: each dependency can see the resolved PLEK_SERVICE_*_URI of
+# every dependency declared *before* it in the same list (so Whitehall's
+# `frontend` dependency, declared after `publishing-api`, inherits the real
+# local Content Store address that publishing-api's own `content-store`
+# dependency resolved - not frontend's own static, real-GOV.UK default
+# below).
 #
 # `database` declares the database this app needs (one per preview, never
 # shared - see KubernetesDatabaseRunner). Omit entirely for apps with no database (e.g.
@@ -47,25 +64,12 @@
 # been given, inherited or its own, under a different env var key, for its
 # own pods only (not propagated to siblings/the parent) - see
 # PreviewBuilder#build!. Only applied when that address exists - e.g. only
-# in a full stack, for full-stack dependencies. Needed when an app's own
-# code reads a fixed env var name, whichever instance it should talk to:
-# e.g. draft-frontend is the same codebase as frontend, which only ever
-# reads PLEK_SERVICE_CONTENT_STORE_URI (never the draft one); and
+# in a full stack, for `full_stack_mode_only` dependencies. Needed when an
+# app's own code reads a fixed env var name, whichever instance it should
+# talk to: e.g. draft-frontend is the same codebase as frontend, which only
+# ever reads PLEK_SERVICE_CONTENT_STORE_URI (never the draft one); and
 # Whitehall builds its "View on website"/"Preview on website" links from
 # GOVUK_WEBSITE_ROOT and PLEK_SERVICE_DRAFT_ORIGIN_URI.
-#
-# `full_stack_dependencies` are like `dependencies`, but only started when a
-# preview asks for its full stack (Preview#full_stack) - built after this
-# app's `dependencies`, in order. They're for seeing an app's output end to
-# end (e.g. Whitehall's Frontends, to view published and draft pages; or
-# Publishing API's Content Stores), never for something the app interacts
-# with directly: e.g. Publishing API is always one of Whitehall's
-# `dependencies`, since its responses (validation errors and all) are part
-# of what a Whitehall preview is for. An app's full stack is therefore its
-# own: a future Collections Publisher's would be its Collections apps plus
-# Publishing API's Content Stores - no Frontend. In a core stack, the app
-# that would have used a left-out dependency is pointed at a stand-in that
-# accepts and discards everything instead (kubernetes/previews/sink.yaml).
 #
 # `memory` sets what each of the app's pods (web, worker and one-off tasks)
 # requests and is limited to - and `database: memory:`, its database's.
@@ -160,9 +164,11 @@ publishing-api:
     memory:
       request: 48Mi
       limit: 256Mi
-  full_stack_dependencies:
-    - content-store
-    - draft-content-store
+  dependencies:
+    - app: content-store
+      full_stack_mode_only: true
+    - app: draft-content-store
+      full_stack_mode_only: true
   worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
   resync_tasks:
     - represent_downstream:all
@@ -249,11 +255,15 @@ whitehall:
       request: 224Mi
       limit: 512Mi
   dependencies:
-    - publishing-api
-  full_stack_dependencies:
-    - asset-manager
-    - frontend
-    - draft-frontend
+    - app: publishing-api
+      # For its Content Stores, which its Frontends read.
+      include_its_full_stack_dependencies_when_running_in_full_stack_mode: true
+    - app: asset-manager
+      full_stack_mode_only: true
+    - app: frontend
+      full_stack_mode_only: true
+    - app: draft-frontend
+      full_stack_mode_only: true
   # In a full stack, link "View on website"/"Preview on website" (and every
   # other public link Whitehall builds) to this preview's own Frontends, and
   # build asset URLs (e.g. a lead image's) from its own Asset Manager.
@@ -371,7 +381,7 @@ publisher:
     adapter: postgresql
     image: postgres:17
   dependencies:
-    - publishing-api
+    - app: publishing-api
   worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
   env:
     # As for Whitehall: without this, Publisher's session cookie is marked
@@ -396,7 +406,7 @@ collections-publisher:
     adapter: mysql2
     image: mysql:8
   dependencies:
-    - publishing-api
+    - app: publishing-api
   worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
   env:
     PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
@@ -410,7 +420,7 @@ specialist-publisher:
     adapter: mysql2
     image: mysql:8
   dependencies:
-    - publishing-api
+    - app: publishing-api
   worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
   env:
     # Its production config refuses to boot without a GOV.UK Notify key.
@@ -430,7 +440,7 @@ travel-advice-publisher:
     adapter: mongodb
     image: mongo:7.0
   dependencies:
-    - publishing-api
+    - app: publishing-api
   worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
   env:
     PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
@@ -444,7 +454,7 @@ manuals-publisher:
     adapter: mongodb
     image: mongo:7.0
   dependencies:
-    - publishing-api
+    - app: publishing-api
   worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
 
 short-url-manager:
@@ -454,7 +464,7 @@ short-url-manager:
     adapter: mongodb
     image: mongo:7.0
   dependencies:
-    - publishing-api
+    - app: publishing-api
   worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
 
 # Has no background worker.
@@ -465,7 +475,7 @@ service-manual-publisher:
     adapter: postgresql
     image: postgres:17
   dependencies:
-    - publishing-api
+    - app: publishing-api
 
 # Postcode lookups, for Frontend and Places Manager. Only knows the
 # postcodes its seeds create (E1 8QS, WV14 8TU, AL1 1HE and AL1 1AA) - any

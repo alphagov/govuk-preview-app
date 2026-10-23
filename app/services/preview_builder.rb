@@ -7,7 +7,7 @@ class PreviewBuilder
   class DependencyError < StandardError; end
 
   # Where a dependency left out of a core stack points instead - see
-  # `full_stack_dependencies` in config/govuk_apps.yml.
+  # `full_stack_mode_only` in config/govuk_apps.yml.
   SINK_URI = "http://sink".freeze
 
   RESCUED_ERRORS = [
@@ -17,10 +17,11 @@ class PreviewBuilder
     DependencyError,
   ].freeze
 
-  attr_reader :preview
+  attr_reader :preview, :full_stack
 
-  def initialize(preview)
+  def initialize(preview, full_stack: preview.full_stack)
     @preview = preview
+    @full_stack = full_stack
   end
 
   # inherited_env carries PLEK_SERVICE_*_URI entries resolved by dependencies
@@ -141,24 +142,28 @@ private
     Digest::SHA256.hexdigest(env.sort.to_h.to_json)
   end
 
-  def left_out?(app, dep_name)
-    app.full_stack_dependencies.include?(dep_name) && !preview.root.full_stack
-  end
-
+  # Starts the app's dependencies, in order - except `full_stack_mode_only`
+  # ones when not in full stack mode, which are pointed at the sink instead.
+  #
+  # A dependency runs in full stack mode itself only if this preview has been
+  # started in full stack mode and if the dependency has set
+  # `include_its_full_stack_dependencies_when_running_in_full_stack_mode` to true.
+  #
+  # This is to support Whitehall's full stack, in which its dependency,
+  # Publishing API, needs to also start its Content Stores.
+  #
   # Returns [env passed on to later siblings and the parent, env for this
   # preview alone].
   def build_dependencies!(app, inherited_env)
-    own_env = {}
+    left_out, to_start = app.dependencies.partition { |dep| dep.full_stack_mode_only && !full_stack }
+    own_env = left_out.to_h { |dep| ["PLEK_SERVICE_#{dep.app.upcase.tr('-', '_')}_URI", SINK_URI] }
 
-    propagated_env = (app.dependencies + app.full_stack_dependencies).each_with_object({}) do |dep_name, env|
-      if left_out?(app, dep_name)
-        own_env["PLEK_SERVICE_#{dep_name.upcase.tr('-', '_')}_URI"] = SINK_URI
-        next
-      end
-
+    propagated_env = to_start.each_with_object({}) do |dep, env|
+      dep_name = dep.app
       dependent = preview.dependents.find_by(app_name: dep_name) ||
         Preview.create!(app_name: dep_name, branch: "main", parent: preview)
-      resolved_env = self.class.new(dependent).build!(inherited_env: inherited_env.merge(env))
+      dep_full_stack = full_stack && dep.include_its_full_stack_dependencies_when_running_in_full_stack_mode
+      resolved_env = self.class.new(dependent, full_stack: dep_full_stack).build!(inherited_env: inherited_env.merge(env))
 
       unless dependent.reload.running?
         raise DependencyError, "dependency #{dep_name} failed to start: #{dependent.status_message}"

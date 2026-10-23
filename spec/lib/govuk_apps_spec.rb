@@ -37,6 +37,21 @@ RSpec.describe GovukApps do
       expect(described_class.find("whitehall").publicly_readable).to be(false)
     end
 
+    it "defaults a dependency to always running, without its own full-stack-mode-only dependencies" do
+      expect(described_class.find("publisher").dependencies.map(&:to_h)).to eq([
+        { app: "publishing-api", full_stack_mode_only: false, include_its_full_stack_dependencies_when_running_in_full_stack_mode: false },
+      ])
+    end
+
+    it "declares every dependency with only known keys, as a typo would silently mean `false`" do
+      described_class.app_names.each do |name|
+        YAML.load_file(Rails.root.join("config/govuk_apps.yml")).dig(name, "dependencies")&.each do |dependency|
+          expect(dependency.keys - described_class::Dependency.members.map(&:to_s)).to be_empty, "#{name}: #{dependency.inspect}"
+          expect(dependency).to have_key("app")
+        end
+      end
+    end
+
     it "parses a declared database" do
       definition = described_class.find("publishing-api")
 
@@ -46,8 +61,12 @@ RSpec.describe GovukApps do
     it "parses declared dependencies, in order" do
       definition = described_class.find("whitehall")
 
-      expect(definition.dependencies).to eq(%w[publishing-api])
-      expect(definition.full_stack_dependencies).to eq(%w[asset-manager frontend draft-frontend])
+      expect(definition.dependencies.map(&:to_h)).to eq([
+        { app: "publishing-api", full_stack_mode_only: false, include_its_full_stack_dependencies_when_running_in_full_stack_mode: true },
+        { app: "asset-manager", full_stack_mode_only: true, include_its_full_stack_dependencies_when_running_in_full_stack_mode: false },
+        { app: "frontend", full_stack_mode_only: true, include_its_full_stack_dependencies_when_running_in_full_stack_mode: false },
+        { app: "draft-frontend", full_stack_mode_only: true, include_its_full_stack_dependencies_when_running_in_full_stack_mode: false },
+      ])
       expect(definition.database).to have_attributes(adapter: "mysql2", image: "mysql:8")
     end
 
@@ -61,8 +80,8 @@ RSpec.describe GovukApps do
       definition = described_class.find("publishing-api")
 
       expect(definition.worker_command).to eq(%w[bundle exec sidekiq -C ./config/sidekiq.yml])
-      expect(definition.dependencies).to eq([])
-      expect(definition.full_stack_dependencies).to eq(%w[content-store draft-content-store])
+      expect(definition.dependencies.map(&:app)).to eq(%w[content-store draft-content-store])
+      expect(definition.dependencies.map(&:full_stack_mode_only)).to eq([true, true])
     end
 
     it "parses publicly_readable" do
