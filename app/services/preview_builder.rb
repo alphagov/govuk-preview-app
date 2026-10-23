@@ -150,7 +150,9 @@ private
   # `include_its_full_stack_dependencies_when_running_in_full_stack_mode` to true.
   #
   # This is to support Whitehall's full stack, in which its dependency,
-  # Publishing API, needs to also start its Content Stores.
+  # Publishing API, needs to also start its Content Stores - but we don't want
+  # the same behaviour for its other dependency, Frontend, since that would pull
+  # in Locations API and other apps that we don't care about in that context.
   #
   # Returns [env passed on to later siblings and the parent, env for this
   # preview alone].

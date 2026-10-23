@@ -27,7 +27,10 @@
 #   (default false): in a full stack, also start this dependency's own
 #   `full_stack_mode_only` dependencies - e.g. Whitehall's Publishing API's
 #   Content Stores, for its Frontends to read. Otherwise they're pointed at
-#   the sink.
+#   the sink: e.g. Whitehall's Frontend is only there to view published
+#   pages, so doesn't start its postcode lookups (Locations API, Local
+#   Links Manager and Places Manager). To try those, preview Frontend's own
+#   full stack.
 #
 # Order matters: each dependency can see the resolved PLEK_SERVICE_*_URI of
 # every dependency declared *before* it in the same list (so Whitehall's
@@ -105,6 +108,16 @@ frontend:
   repo_url: https://github.com/alphagov/frontend.git
   port_env_var: PORT
   publicly_readable: true
+  # For its postcode pages (local transactions, licences, find your
+  # council, find nearest places). Places Manager comes last, so it's
+  # pointed at the other two as well.
+  dependencies:
+    - app: locations-api
+      full_stack_mode_only: true
+    - app: local-links-manager
+      full_stack_mode_only: true
+    - app: places-manager
+      full_stack_mode_only: true
   env:
     PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
 

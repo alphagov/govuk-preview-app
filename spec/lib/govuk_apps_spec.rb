@@ -21,11 +21,11 @@ RSpec.describe GovukApps do
 
   describe ".find" do
     it "returns the definition for a known app, with no database/dependencies by default" do
-      definition = described_class.find("frontend")
+      definition = described_class.find("collections")
 
-      expect(definition.repo_url).to eq("https://github.com/alphagov/frontend.git")
+      expect(definition.repo_url).to eq("https://github.com/alphagov/collections.git")
       expect(definition.port_env_var).to eq("PORT")
-      expect(definition.env).to eq("PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api")
+      expect(definition.env).to include("PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api")
       expect(definition.dependencies).to eq([])
       expect(definition.database).to be_nil
       expect(definition.setup_tasks).to eq([])
@@ -254,6 +254,11 @@ RSpec.describe GovukApps do
       )
     end
 
+    it "leaves out a dependency's own full-stack-mode-only dependencies unless it's declared to include them - e.g. Frontend's, in Whitehall's full stack" do
+      expect(described_class.dependency_tree("frontend")).to eq(%w[locations-api local-links-manager places-manager])
+      expect(described_class.dependency_tree("frontend", full_stack: false)).to eq([])
+    end
+
     it "leaves out full-stack-only dependencies, at any depth, for a core stack" do
       expect(described_class.dependency_tree("whitehall", full_stack: false)).to eq(%w[publishing-api])
     end
@@ -282,9 +287,14 @@ RSpec.describe GovukApps do
       expect(described_class.full_stack_option?("content-store")).to be(false)
     end
 
+    it "offers Frontend a full stack of its postcode lookups" do
+      expect(described_class.full_stack_extras("frontend")).to eq(%w[locations-api local-links-manager places-manager])
+      expect(described_class.full_stack_option?("frontend")).to be(true)
+    end
+
     it "offers no full stack for an app whose full stack is no different" do
-      expect(described_class.full_stack_extras("frontend")).to eq([])
-      expect(described_class.full_stack_option?("frontend")).to be(false)
+      expect(described_class.full_stack_extras("draft-frontend")).to eq([])
+      expect(described_class.full_stack_option?("draft-frontend")).to be(false)
     end
   end
 end
