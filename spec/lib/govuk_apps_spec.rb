@@ -13,18 +13,19 @@ RSpec.describe GovukApps do
       expect(described_class.app_names).to include(
         "frontend", "draft-frontend", "content-store", "draft-content-store", "publishing-api", "whitehall",
         "govuk-publishing-components", "govuk-content-publishing-guidance",
-        "collections", "feedback", "finder-frontend", "smart-answers", "places-manager"
+        "collections", "feedback", "finder-frontend", "smart-answers", "places-manager",
+        "locations-api", "local-links-manager"
       )
     end
   end
 
   describe ".find" do
     it "returns the definition for a known app, with no database/dependencies by default" do
-      definition = described_class.find("frontend")
+      definition = described_class.find("collections")
 
-      expect(definition.repo_url).to eq("https://github.com/alphagov/frontend.git")
+      expect(definition.repo_url).to eq("https://github.com/alphagov/collections.git")
       expect(definition.port_env_var).to eq("PORT")
-      expect(definition.env).to eq("PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api")
+      expect(definition.env).to include("PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api")
       expect(definition.dependencies).to eq([])
       expect(definition.database).to be_nil
       expect(definition.setup_tasks).to eq([])
@@ -36,6 +37,21 @@ RSpec.describe GovukApps do
       expect(described_class.find("whitehall").publicly_readable).to be(false)
     end
 
+    it "defaults a dependency to always running, without its own full-stack-mode-only dependencies" do
+      expect(described_class.find("publisher").dependencies.map(&:to_h)).to eq([
+        { app: "publishing-api", full_stack_mode_only: false, include_its_full_stack_dependencies_when_running_in_full_stack_mode: false },
+      ])
+    end
+
+    it "declares every dependency with only known keys, as a typo would silently mean `false`" do
+      described_class.app_names.each do |name|
+        YAML.load_file(Rails.root.join("config/govuk_apps.yml")).dig(name, "dependencies")&.each do |dependency|
+          expect(dependency.keys - described_class::Dependency.members.map(&:to_s)).to be_empty, "#{name}: #{dependency.inspect}"
+          expect(dependency).to have_key("app")
+        end
+      end
+    end
+
     it "parses a declared database" do
       definition = described_class.find("publishing-api")
 
@@ -45,8 +61,12 @@ RSpec.describe GovukApps do
     it "parses declared dependencies, in order" do
       definition = described_class.find("whitehall")
 
-      expect(definition.dependencies).to eq(%w[publishing-api])
-      expect(definition.full_stack_dependencies).to eq(%w[asset-manager frontend draft-frontend])
+      expect(definition.dependencies.map(&:to_h)).to eq([
+        { app: "publishing-api", full_stack_mode_only: false, include_its_full_stack_dependencies_when_running_in_full_stack_mode: true },
+        { app: "asset-manager", full_stack_mode_only: true, include_its_full_stack_dependencies_when_running_in_full_stack_mode: false },
+        { app: "frontend", full_stack_mode_only: true, include_its_full_stack_dependencies_when_running_in_full_stack_mode: false },
+        { app: "draft-frontend", full_stack_mode_only: true, include_its_full_stack_dependencies_when_running_in_full_stack_mode: false },
+      ])
       expect(definition.database).to have_attributes(adapter: "mysql2", image: "mysql:8")
     end
 
@@ -60,8 +80,8 @@ RSpec.describe GovukApps do
       definition = described_class.find("publishing-api")
 
       expect(definition.worker_command).to eq(%w[bundle exec sidekiq -C ./config/sidekiq.yml])
-      expect(definition.dependencies).to eq([])
-      expect(definition.full_stack_dependencies).to eq(%w[content-store draft-content-store])
+      expect(definition.dependencies.map(&:app)).to eq(%w[content-store draft-content-store])
+      expect(definition.dependencies.map(&:full_stack_mode_only)).to eq([true, true])
     end
 
     it "parses publicly_readable" do
@@ -142,6 +162,10 @@ RSpec.describe GovukApps do
 
       expect(definition.repo_url).to eq("https://github.com/alphagov/places-manager.git")
       expect(definition.database.adapter).to eq("postgis")
+      # Built on the official postgres image, whose entrypoint runs as the
+      # database pod's non-root user and honours KubernetesDatabaseRunner's
+      # env and args (unlike e.g. kartoza/postgis, which needs root).
+      expect(definition.database.image).to eq("imresamu/postgis:18-3.6")
       expect(definition.worker_command).to eq(["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"])
       expect(definition.publicly_readable).to be(true)
       expect(definition.public_paths).to be_nil
@@ -151,6 +175,23 @@ RSpec.describe GovukApps do
         "PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api",
         "PLEK_SERVICE_SEARCH_API_URI" => "https://www.gov.uk/api",
       )
+    end
+
+    it "parses locations-api" do
+      definition = described_class.find("locations-api")
+
+      expect(definition.repo_url).to eq("https://github.com/alphagov/locations-api.git")
+      expect(definition.database.adapter).to eq("postgresql")
+      expect(definition.worker_command).to be_nil
+    end
+
+    it "parses local-links-manager" do
+      definition = described_class.find("local-links-manager")
+
+      expect(definition.repo_url).to eq("https://github.com/alphagov/local-links-manager.git")
+      expect(definition.database.adapter).to eq("postgresql")
+      expect(definition.setup_tasks).to eq(%w[import:local_authorities:import_all])
+      expect(definition.env).to eq("PLEK_SERVICE_PUBLISHING_API_URI" => "http://sink")
     end
 
     it "parses smart-answers" do
@@ -213,6 +254,11 @@ RSpec.describe GovukApps do
       )
     end
 
+    it "leaves out a dependency's own full-stack-mode-only dependencies unless it's declared to include them - e.g. Frontend's, in Whitehall's full stack" do
+      expect(described_class.dependency_tree("frontend")).to eq(%w[locations-api local-links-manager places-manager])
+      expect(described_class.dependency_tree("frontend", full_stack: false)).to eq([])
+    end
+
     it "leaves out full-stack-only dependencies, at any depth, for a core stack" do
       expect(described_class.dependency_tree("whitehall", full_stack: false)).to eq(%w[publishing-api])
     end
@@ -241,9 +287,14 @@ RSpec.describe GovukApps do
       expect(described_class.full_stack_option?("content-store")).to be(false)
     end
 
+    it "offers Frontend a full stack of its postcode lookups" do
+      expect(described_class.full_stack_extras("frontend")).to eq(%w[locations-api local-links-manager places-manager])
+      expect(described_class.full_stack_option?("frontend")).to be(true)
+    end
+
     it "offers no full stack for an app whose full stack is no different" do
-      expect(described_class.full_stack_extras("frontend")).to eq([])
-      expect(described_class.full_stack_option?("frontend")).to be(false)
+      expect(described_class.full_stack_extras("draft-frontend")).to eq([])
+      expect(described_class.full_stack_option?("draft-frontend")).to be(false)
     end
   end
 end

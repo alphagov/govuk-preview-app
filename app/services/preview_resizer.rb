@@ -1,5 +1,5 @@
 # Switches a running top-level preview between the core stack and the full
-# stack (see `full_stack_dependencies` in config/govuk_apps.yml), without
+# stack (see `full_stack_mode_only` in config/govuk_apps.yml), without
 # rebuilding what's already there:
 #
 # - adding the full stack makes room for the extra apps, then lets
@@ -44,6 +44,8 @@ private
 
   # Dependency previews that only exist in the full stack.
   def extra_previews
-    root.tree.drop(1).select { |preview| GovukApps.find(preview.parent.app_name).full_stack_dependencies.include?(preview.app_name) }
+    root.tree.drop(1).select do |preview|
+      GovukApps.find(preview.parent.app_name).dependencies.find { |dep| dep.app == preview.app_name }.full_stack_mode_only
+    end
   end
 end

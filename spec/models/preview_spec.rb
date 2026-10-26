@@ -187,7 +187,7 @@ RSpec.describe Preview do
 
   describe "#full_stack" do
     it "is ignored for an app whose full stack is no different from its core one" do
-      expect(create(:preview, app_name: "frontend", full_stack: true).full_stack).to be(false)
+      expect(create(:preview, app_name: "collections", full_stack: true).full_stack).to be(false)
       expect(create(:preview, app_name: "whitehall", full_stack: true).full_stack).to be(true)
     end
   end

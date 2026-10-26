@@ -9,15 +9,35 @@
 # client, via Plek) at the real GOV.UK service instead of running a preview
 # of it.
 #
-# `dependencies` names other apps in this manifest that must run as their
+# `dependencies` lists other apps in this manifest that must run as their
 # own real, dedicated preview (never shared across parents) before this app
 # starts - e.g. Whitehall needs a real, writable Publishing API, not the
-# real GOV.UK one. See PreviewBuilder. Order matters: each dependency can
-# see the resolved PLEK_SERVICE_*_URI of every dependency declared *before*
-# it in the same list (so Whitehall's `frontend` dependency, declared after
-# `publishing-api`, inherits the real local Content Store address that
-# publishing-api's own `content-store` dependency resolved - not frontend's
-# own static, real-GOV.UK default below).
+# real GOV.UK one. See PreviewBuilder. Each is an `app`, plus:
+#
+# - `full_stack_mode_only` (default false): only started when a preview
+#   asks for its full stack (Preview#full_stack). For seeing an app's
+#   output end to end (e.g. Whitehall's Frontends, to view published and
+#   draft pages; or Publishing API's Content Stores), never for something
+#   the app interacts with directly: e.g. Publishing API always runs with
+#   Whitehall, since its responses (validation errors and all) are part of
+#   what a Whitehall preview is for. Otherwise, the app is pointed at a
+#   stand-in that accepts and discards everything instead
+#   (kubernetes/previews/sink.yaml).
+# - `include_its_full_stack_dependencies_when_running_in_full_stack_mode`
+#   (default false): in a full stack, also start this dependency's own
+#   `full_stack_mode_only` dependencies - e.g. Whitehall's Publishing API's
+#   Content Stores, for its Frontends to read. Otherwise they're pointed at
+#   the sink: e.g. Whitehall's Frontend is only there to view published
+#   pages, so doesn't start its postcode lookups (Locations API, Local
+#   Links Manager and Places Manager). To try those, preview Frontend's own
+#   full stack.
+#
+# Order matters: each dependency can see the resolved PLEK_SERVICE_*_URI of
+# every dependency declared *before* it in the same list (so Whitehall's
+# `frontend` dependency, declared after `publishing-api`, inherits the real
+# local Content Store address that publishing-api's own `content-store`
+# dependency resolved - not frontend's own static, real-GOV.UK default
+# below).
 #
 # `database` declares the database this app needs (one per preview, never
 # shared - see KubernetesDatabaseRunner). Omit entirely for apps with no database (e.g.
@@ -47,25 +67,12 @@
 # been given, inherited or its own, under a different env var key, for its
 # own pods only (not propagated to siblings/the parent) - see
 # PreviewBuilder#build!. Only applied when that address exists - e.g. only
-# in a full stack, for full-stack dependencies. Needed when an app's own
-# code reads a fixed env var name, whichever instance it should talk to:
-# e.g. draft-frontend is the same codebase as frontend, which only ever
-# reads PLEK_SERVICE_CONTENT_STORE_URI (never the draft one); and
+# in a full stack, for `full_stack_mode_only` dependencies. Needed when an
+# app's own code reads a fixed env var name, whichever instance it should
+# talk to: e.g. draft-frontend is the same codebase as frontend, which only
+# ever reads PLEK_SERVICE_CONTENT_STORE_URI (never the draft one); and
 # Whitehall builds its "View on website"/"Preview on website" links from
 # GOVUK_WEBSITE_ROOT and PLEK_SERVICE_DRAFT_ORIGIN_URI.
-#
-# `full_stack_dependencies` are like `dependencies`, but only started when a
-# preview asks for its full stack (Preview#full_stack) - built after this
-# app's `dependencies`, in order. They're for seeing an app's output end to
-# end (e.g. Whitehall's Frontends, to view published and draft pages; or
-# Publishing API's Content Stores), never for something the app interacts
-# with directly: e.g. Publishing API is always one of Whitehall's
-# `dependencies`, since its responses (validation errors and all) are part
-# of what a Whitehall preview is for. An app's full stack is therefore its
-# own: a future Collections Publisher's would be its Collections apps plus
-# Publishing API's Content Stores - no Frontend. In a core stack, the app
-# that would have used a left-out dependency is pointed at a stand-in that
-# accepts and discards everything instead (kubernetes/previews/sink.yaml).
 #
 # `memory` sets what each of the app's pods (web, worker and one-off tasks)
 # requests and is limited to - and `database: memory:`, its database's.
@@ -93,85 +100,16 @@
 # `resync_tasks` names `bin/rails` tasks to run when a running preview is
 # switched to the full stack - e.g. re-sending everything Publishing API
 # holds to the Content Stores that have just been added.
-
-frontend:
-  memory:
-    request: 176Mi
-    limit: 512Mi
-  repo_url: https://github.com/alphagov/frontend.git
-  port_env_var: PORT
-  publicly_readable: true
-  env:
-    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
-
-draft-frontend:
-  memory:
-    request: 176Mi
-    limit: 512Mi
-  repo_url: https://github.com/alphagov/frontend.git
-  port_env_var: PORT
-  publicly_readable: true
-  env_aliases:
-    PLEK_SERVICE_CONTENT_STORE_URI: PLEK_SERVICE_DRAFT_CONTENT_STORE_URI
-  env:
-    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
-    # Purely cosmetic - frontend's own draft_helper.rb/layouts_helper.rb use
-    # this solely to show a "draft" watermark banner; no effect on content
-    # lookup (see env_aliases above for how that's actually wired).
-    PLEK_HOSTNAME_PREFIX: "draft-"
-
-content-store:
-  memory:
-    request: 160Mi
-    limit: 512Mi
-  repo_url: https://github.com/alphagov/content-store.git
-  port_env_var: PORT
-  database:
-    adapter: postgresql
-    image: postgres:17
-    memory:
-      request: 48Mi
-      limit: 256Mi
-  publicly_readable: true
-
-draft-content-store:
-  memory:
-    request: 160Mi
-    limit: 512Mi
-  repo_url: https://github.com/alphagov/content-store.git
-  port_env_var: PORT
-  database:
-    adapter: postgresql
-    image: postgres:17
-    memory:
-      request: 48Mi
-      limit: 256Mi
-  publicly_readable: true
-
-publishing-api:
-  memory:
-    request: 288Mi
-    limit: 768Mi
-  repo_url: https://github.com/alphagov/publishing-api.git
-  port_env_var: PORT
-  database:
-    adapter: postgresql
-    image: postgres:17
-    memory:
-      request: 48Mi
-      limit: 256Mi
-  full_stack_dependencies:
-    - content-store
-    - draft-content-store
-  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
-  resync_tasks:
-    - represent_downstream:all
-  env:
-    # The queue publisher broadcasts over RabbitMQ to third-party downstream
-    # consumers (e.g. search-api, email-alert-api) - a separate mechanism
-    # from the Sidekiq worker's own HTTP push straight to Content Store, and
-    # there's no RabbitMQ here for it to connect to.
-    DISABLE_QUEUE_PUBLISHER: "1"
+#
+# collections, feedback, finder-frontend, govuk-content-publishing-guidance,
+# govuk-publishing-components and smart-answers previously only got a
+# Heroku review app (see docs.publishing.service.gov.uk/manual/review-apps.html)
+# - plain, dependency-free previews, same pattern as frontend. None of these
+# publish a per-branch image to GHCR yet (govuk_publishing_components and
+# govuk-content-publishing-guidance don't even have a Dockerfile/CI image at
+# all - see each one's own comment), so a preview of any of them sits in
+# waiting_for_image until either that's fixed, or it's previewed from a
+# local checkout via bin/preview-build.
 
 # Whitehall's uploads (e.g. a news story's lead image) - a stack's own,
 # instead of the real Asset Manager on integration. GOV.UK's real one serves
@@ -236,6 +174,320 @@ asset-manager:
     # Not a real secret - boot fails without one (config/application.rb).
     JWT_AUTH_SECRET: preview-jwt-secret
 
+collections:
+  repo_url: https://github.com/alphagov/collections.git
+  port_env_var: PORT
+  env:
+    GOVUK_APP_DOMAIN: www.gov.uk
+    GOVUK_WEBSITE_ROOT: https://www.gov.uk
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+    PLEK_SERVICE_SEARCH_API_URI: https://www.gov.uk/api
+
+# Not run alongside it (so those features won't work in a preview): Link
+# Checker API. Reads published content from the real GOV.UK Content Store.
+collections-publisher:
+  repo_url: https://github.com/alphagov/collections-publisher.git
+  port_env_var: PORT
+  database:
+    adapter: mysql2
+    image: mysql:8
+  dependencies:
+    - app: publishing-api
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
+  env:
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+
+content-store:
+  memory:
+    request: 160Mi
+    limit: 512Mi
+  repo_url: https://github.com/alphagov/content-store.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:17
+    memory:
+      request: 48Mi
+      limit: 256Mi
+  publicly_readable: true
+
+draft-content-store:
+  memory:
+    request: 160Mi
+    limit: 512Mi
+  repo_url: https://github.com/alphagov/content-store.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:17
+    memory:
+      request: 48Mi
+      limit: 256Mi
+  publicly_readable: true
+
+draft-frontend:
+  memory:
+    request: 176Mi
+    limit: 512Mi
+  repo_url: https://github.com/alphagov/frontend.git
+  port_env_var: PORT
+  publicly_readable: true
+  env_aliases:
+    PLEK_SERVICE_CONTENT_STORE_URI: PLEK_SERVICE_DRAFT_CONTENT_STORE_URI
+  env:
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+    # Purely cosmetic - frontend's own draft_helper.rb/layouts_helper.rb use
+    # this solely to show a "draft" watermark banner; no effect on content
+    # lookup (see env_aliases above for how that's actually wired).
+    PLEK_HOSTNAME_PREFIX: "draft-"
+
+feedback:
+  repo_url: https://github.com/alphagov/feedback.git
+  port_env_var: PORT
+  env:
+    GOVUK_APP_DOMAIN: www.gov.uk
+    GOVUK_WEBSITE_ROOT: https://www.gov.uk
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+
+finder-frontend:
+  repo_url: https://github.com/alphagov/finder-frontend.git
+  port_env_var: PORT
+  env:
+    GOVUK_APP_DOMAIN: www.gov.uk
+    GOVUK_WEBSITE_ROOT: https://www.gov.uk
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+    PLEK_SERVICE_SEARCH_API_URI: https://www.gov.uk/api
+    PLEK_SERVICE_WHITEHALL_FRONTEND_URI: https://www.gov.uk
+
+frontend:
+  memory:
+    request: 176Mi
+    limit: 512Mi
+  repo_url: https://github.com/alphagov/frontend.git
+  port_env_var: PORT
+  publicly_readable: true
+  # For its postcode pages (local transactions, licences, find your
+  # council, find nearest places). Places Manager comes last, so it's
+  # pointed at the other two as well.
+  dependencies:
+    - app: locations-api
+      full_stack_mode_only: true
+    - app: local-links-manager
+      full_stack_mode_only: true
+    - app: places-manager
+      full_stack_mode_only: true
+  env:
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+
+govuk-content-publishing-guidance:
+  repo_url: https://github.com/alphagov/govuk-content-publishing-guidance.git
+  port_env_var: PORT
+
+# Named with hyphens, not the repo's own underscores - Kubernetes object
+# names (ConfigMaps, Services, etc.) can't contain underscores, and every
+# other manifest key already uses hyphens; the manifest key is just a
+# lookup string, decoupled from repo_url.
+govuk-publishing-components:
+  repo_url: https://github.com/alphagov/govuk_publishing_components.git
+  port_env_var: PORT
+  env:
+    GOVUK_WEBSITE_ROOT: https://www.gov.uk
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+    PLEK_SERVICE_RUMMAGER_URI: https://www.gov.uk/api
+    # Not in app.json - only in its Procfile. Without this, spec/dummy boots
+    # but serves its own default behaviour instead of the actual component
+    # guide UI.
+    MAIN_COMPONENT_GUIDE: "true"
+    # spec/dummy isn't a deployed app with its own asset:precompile step -
+    # on Heroku that happens automatically as part of the buildpack's slug
+    # compile. Locally (bin/preview-build) there's no such step, so it has
+    # to serve assets live via Sprockets, which only happens outside
+    # RAILS_ENV=production (confirmed directly: production raises
+    # LoadError (sassc)/missing-manifest errors instead).
+    RAILS_ENV: development
+    RACK_ENV: development
+
+# Local authorities and their links to council services, for Frontend and
+# Places Manager. Only its local authorities are imported (from a CSV in
+# its own repo) - its services and links come from external sites and
+# Publishing API, so pages that need a council's link for a service find
+# none.
+local-links-manager:
+  repo_url: https://github.com/alphagov/local-links-manager.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:18
+  setup_tasks:
+    - import:local_authorities:import_all
+  env:
+    # Saving a local authority publishes it to Publishing API, which isn't
+    # run alongside it. Without this, the import stops at the first one -
+    # quietly, as it logs the error rather than failing.
+    PLEK_SERVICE_PUBLISHING_API_URI: http://sink
+
+# Postcode lookups, for Frontend and Places Manager. Only knows the
+# postcodes its seeds create (E1 8QS, WV14 8TU, AL1 1HE and AL1 1AA) - any
+# other is looked up in OS Places, which needs credentials it doesn't
+# have here. Its worker only refreshes postcodes from OS Places and ONS
+# imports, so it isn't run.
+locations-api:
+  repo_url: https://github.com/alphagov/locations-api.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:18
+
+# Not run alongside it (so those features won't work in a preview): Asset
+# Manager (attachments) and Link Checker API.
+manuals-publisher:
+  repo_url: https://github.com/alphagov/manuals-publisher.git
+  port_env_var: PORT
+  database:
+    adapter: mongodb
+    image: mongo:7.0
+  dependencies:
+    - app: publishing-api
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
+
+places-manager:
+  memory:
+    request: 224Mi
+    limit: 512Mi
+  repo_url: https://github.com/alphagov/places-manager.git
+  port_env_var: PORT
+  publicly_readable: true
+  database:
+    # postgis/postgis has no arm64 image; this is a multi-arch build of it.
+    # Not kartoza/postgis, as govuk-docker uses: its entrypoint needs root,
+    # and its own env vars for the database, user and data directory.
+    adapter: postgis
+    image: imresamu/postgis:18-3.6
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
+  env:
+    # As for Whitehall and Publisher: without this, its session cookie is
+    # marked `secure` in production, so it's never set over our plain-HTTP
+    # entry point and every admin form submission (e.g. creating a
+    # service) fails CSRF verification.
+    DISABLE_SECURE_COOKIES: "1"
+    GOVUK_WEBSITE_ROOT: https://www.gov.uk
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+    PLEK_SERVICE_SEARCH_API_URI: https://www.gov.uk/api
+
+# Mainstream Publisher. Not run alongside it (so those features won't work
+# in a preview): Link Checker API.
+publisher:
+  repo_url: https://github.com/alphagov/publisher.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:17
+  dependencies:
+    - app: publishing-api
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
+  env:
+    # As for Whitehall: without this, Publisher's session cookie is marked
+    # `secure` in production, so no browser keeps it over our plain-HTTP
+    # entry point and every form submission fails CSRF verification.
+    DISABLE_SECURE_COOKIES: "1"
+    # Not a real secret - Publisher signs its draft preview links with this
+    # (PathsHelper#jwt_token), and creating an edition crashes without one.
+    JWT_AUTH_SECRET: preview-jwt-secret
+    # Publisher emails alert groups via GOV.UK Notify on every edition
+    # action (EventNotifierService), and with no real Notify API key that
+    # crashes - e.g. creating an edition fails. Its production.rb turns off
+    # delivery when this is set, so no email is ever sent from a preview.
+    DISABLE_EMAIL: "1"
+
+publishing-api:
+  memory:
+    request: 288Mi
+    limit: 768Mi
+  repo_url: https://github.com/alphagov/publishing-api.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:17
+    memory:
+      request: 48Mi
+      limit: 256Mi
+  dependencies:
+    - app: content-store
+      full_stack_mode_only: true
+    - app: draft-content-store
+      full_stack_mode_only: true
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
+  resync_tasks:
+    - represent_downstream:all
+  env:
+    # The queue publisher broadcasts over RabbitMQ to third-party downstream
+    # consumers (e.g. search-api, email-alert-api) - a separate mechanism
+    # from the Sidekiq worker's own HTTP push straight to Content Store, and
+    # there's no RabbitMQ here for it to connect to.
+    DISABLE_QUEUE_PUBLISHER: "1"
+
+# Has no background worker.
+service-manual-publisher:
+  repo_url: https://github.com/alphagov/service-manual-publisher.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:17
+  dependencies:
+    - app: publishing-api
+
+short-url-manager:
+  repo_url: https://github.com/alphagov/short-url-manager.git
+  port_env_var: PORT
+  database:
+    adapter: mongodb
+    image: mongo:7.0
+  dependencies:
+    - app: publishing-api
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
+
+smart-answers:
+  repo_url: https://github.com/alphagov/smart-answers.git
+  port_env_var: PORT
+  env:
+    GOVUK_APP_DOMAIN: www.gov.uk
+    GOVUK_WEBSITE_ROOT: https://www.gov.uk
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+
+# Not run alongside it (so those features won't work in a preview): Asset
+# Manager (attachments) and Email Alert API.
+specialist-publisher:
+  repo_url: https://github.com/alphagov/specialist-publisher.git
+  port_env_var: PORT
+  database:
+    adapter: mysql2
+    image: mysql:8
+  dependencies:
+    - app: publishing-api
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
+  env:
+    # Its production config refuses to boot without a GOV.UK Notify key.
+    # This is a dummy in Notify's format, so no email is ever actually sent.
+    GOVUK_NOTIFY_API_KEY: preview-00000000-0000-0000-0000-000000000000-00000000-0000-0000-0000-000000000000
+    # Its seeds (which create the user that mock sign-in needs) only run in
+    # production when asked to - as for its Heroku review apps.
+    RUN_SEEDS_IN_PRODUCTION: "true"
+
+# Not run alongside it (so those features won't work in a preview): Asset
+# Manager (attachments). Reads published content from the real GOV.UK
+# Content Store.
+travel-advice-publisher:
+  repo_url: https://github.com/alphagov/travel-advice-publisher.git
+  port_env_var: PORT
+  database:
+    adapter: mongodb
+    image: mongo:7.0
+  dependencies:
+    - app: publishing-api
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
+  env:
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+
 whitehall:
   memory:
     request: 288Mi
@@ -249,11 +501,15 @@ whitehall:
       request: 224Mi
       limit: 512Mi
   dependencies:
-    - publishing-api
-  full_stack_dependencies:
-    - asset-manager
-    - frontend
-    - draft-frontend
+    - app: publishing-api
+      # For its Content Stores, which its Frontends read.
+      include_its_full_stack_dependencies_when_running_in_full_stack_mode: true
+    - app: asset-manager
+      full_stack_mode_only: true
+    - app: frontend
+      full_stack_mode_only: true
+    - app: draft-frontend
+      full_stack_mode_only: true
   # In a full stack, link "View on website"/"Preview on website" (and every
   # other public link Whitehall builds) to this preview's own Frontends, and
   # build asset URLs (e.g. a lead image's) from its own Asset Manager.
@@ -289,203 +545,3 @@ whitehall:
     # never persist across requests. Any truthy value works.
     DISABLE_SECURE_COOKIES: "1"
     GOVUK_UPLOADS_ROOT: /uploads
-
-# The apps below previously only got a Heroku review app (see
-# docs.publishing.service.gov.uk/manual/review-apps.html) - plain,
-# dependency-free previews, same pattern as frontend above. None of these
-# publish a per-branch image to GHCR yet (govuk_publishing_components and
-# govuk-content-publishing-guidance don't even have a Dockerfile/CI image at
-# all - see each one's own comment below), so a preview of any of them sits
-# in waiting_for_image until either that's fixed, or it's previewed from a
-# local checkout via bin/preview-build.
-
-# Named with hyphens, not the repo's own underscores - Kubernetes object
-# names (ConfigMaps, Services, etc.) can't contain underscores, and every
-# other manifest key already uses hyphens; the manifest key is just a
-# lookup string, decoupled from repo_url.
-govuk-publishing-components:
-  repo_url: https://github.com/alphagov/govuk_publishing_components.git
-  port_env_var: PORT
-  env:
-    GOVUK_WEBSITE_ROOT: https://www.gov.uk
-    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
-    PLEK_SERVICE_RUMMAGER_URI: https://www.gov.uk/api
-    # Not in app.json - only in its Procfile. Without this, spec/dummy boots
-    # but serves its own default behaviour instead of the actual component
-    # guide UI.
-    MAIN_COMPONENT_GUIDE: "true"
-    # spec/dummy isn't a deployed app with its own asset:precompile step -
-    # on Heroku that happens automatically as part of the buildpack's slug
-    # compile. Locally (bin/preview-build) there's no such step, so it has
-    # to serve assets live via Sprockets, which only happens outside
-    # RAILS_ENV=production (confirmed directly: production raises
-    # LoadError (sassc)/missing-manifest errors instead).
-    RAILS_ENV: development
-    RACK_ENV: development
-
-govuk-content-publishing-guidance:
-  repo_url: https://github.com/alphagov/govuk-content-publishing-guidance.git
-  port_env_var: PORT
-
-collections:
-  repo_url: https://github.com/alphagov/collections.git
-  port_env_var: PORT
-  env:
-    GOVUK_APP_DOMAIN: www.gov.uk
-    GOVUK_WEBSITE_ROOT: https://www.gov.uk
-    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
-    PLEK_SERVICE_SEARCH_API_URI: https://www.gov.uk/api
-
-feedback:
-  repo_url: https://github.com/alphagov/feedback.git
-  port_env_var: PORT
-  env:
-    GOVUK_APP_DOMAIN: www.gov.uk
-    GOVUK_WEBSITE_ROOT: https://www.gov.uk
-    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
-
-finder-frontend:
-  repo_url: https://github.com/alphagov/finder-frontend.git
-  port_env_var: PORT
-  env:
-    GOVUK_APP_DOMAIN: www.gov.uk
-    GOVUK_WEBSITE_ROOT: https://www.gov.uk
-    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
-    PLEK_SERVICE_SEARCH_API_URI: https://www.gov.uk/api
-    PLEK_SERVICE_WHITEHALL_FRONTEND_URI: https://www.gov.uk
-
-smart-answers:
-  repo_url: https://github.com/alphagov/smart-answers.git
-  port_env_var: PORT
-  env:
-    GOVUK_APP_DOMAIN: www.gov.uk
-    GOVUK_WEBSITE_ROOT: https://www.gov.uk
-    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
-
-# Mainstream Publisher. Not run alongside it (so those features won't work
-# in a preview): Link Checker API.
-publisher:
-  repo_url: https://github.com/alphagov/publisher.git
-  port_env_var: PORT
-  database:
-    adapter: postgresql
-    image: postgres:17
-  dependencies:
-    - publishing-api
-  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
-  env:
-    # As for Whitehall: without this, Publisher's session cookie is marked
-    # `secure` in production, so no browser keeps it over our plain-HTTP
-    # entry point and every form submission fails CSRF verification.
-    DISABLE_SECURE_COOKIES: "1"
-    # Not a real secret - Publisher signs its draft preview links with this
-    # (PathsHelper#jwt_token), and creating an edition crashes without one.
-    JWT_AUTH_SECRET: preview-jwt-secret
-    # Publisher emails alert groups via GOV.UK Notify on every edition
-    # action (EventNotifierService), and with no real Notify API key that
-    # crashes - e.g. creating an edition fails. Its production.rb turns off
-    # delivery when this is set, so no email is ever sent from a preview.
-    DISABLE_EMAIL: "1"
-
-# Not run alongside it (so those features won't work in a preview): Link
-# Checker API. Reads published content from the real GOV.UK Content Store.
-collections-publisher:
-  repo_url: https://github.com/alphagov/collections-publisher.git
-  port_env_var: PORT
-  database:
-    adapter: mysql2
-    image: mysql:8
-  dependencies:
-    - publishing-api
-  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
-  env:
-    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
-
-# Not run alongside it (so those features won't work in a preview): Asset
-# Manager (attachments) and Email Alert API.
-specialist-publisher:
-  repo_url: https://github.com/alphagov/specialist-publisher.git
-  port_env_var: PORT
-  database:
-    adapter: mysql2
-    image: mysql:8
-  dependencies:
-    - publishing-api
-  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
-  env:
-    # Its production config refuses to boot without a GOV.UK Notify key.
-    # This is a dummy in Notify's format, so no email is ever actually sent.
-    GOVUK_NOTIFY_API_KEY: preview-00000000-0000-0000-0000-000000000000-00000000-0000-0000-0000-000000000000
-    # Its seeds (which create the user that mock sign-in needs) only run in
-    # production when asked to - as for its Heroku review apps.
-    RUN_SEEDS_IN_PRODUCTION: "true"
-
-# Not run alongside it (so those features won't work in a preview): Asset
-# Manager (attachments). Reads published content from the real GOV.UK
-# Content Store.
-travel-advice-publisher:
-  repo_url: https://github.com/alphagov/travel-advice-publisher.git
-  port_env_var: PORT
-  database:
-    adapter: mongodb
-    image: mongo:7.0
-  dependencies:
-    - publishing-api
-  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
-  env:
-    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
-
-# Not run alongside it (so those features won't work in a preview): Asset
-# Manager (attachments) and Link Checker API.
-manuals-publisher:
-  repo_url: https://github.com/alphagov/manuals-publisher.git
-  port_env_var: PORT
-  database:
-    adapter: mongodb
-    image: mongo:7.0
-  dependencies:
-    - publishing-api
-  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
-
-short-url-manager:
-  repo_url: https://github.com/alphagov/short-url-manager.git
-  port_env_var: PORT
-  database:
-    adapter: mongodb
-    image: mongo:7.0
-  dependencies:
-    - publishing-api
-  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
-
-# Has no background worker.
-service-manual-publisher:
-  repo_url: https://github.com/alphagov/service-manual-publisher.git
-  port_env_var: PORT
-  database:
-    adapter: postgresql
-    image: postgres:17
-  dependencies:
-    - publishing-api
-
-places-manager:
-  memory:
-    request: 224Mi
-    limit: 512Mi
-  repo_url: https://github.com/alphagov/places-manager.git
-  port_env_var: PORT
-  publicly_readable: true
-  database:
-    # postgis/postgis has no arm64 image; this is a multi-arch build of it
-    # as used in govuk-docker: https://github.com/alphagov/govuk-docker/blob/ff33344f07e4033d63798cc9ade99712887adff9/docker-compose.yml#L66-L73
-    adapter: postgis
-    image: kartoza/postgis:18-3.6
-  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
-  env:
-    # As for Whitehall and Publisher: without this, its session cookie is
-    # marked `secure` in production, so it's never set over our plain-HTTP
-    # entry point and every admin form submission (e.g. creating a
-    # service) fails CSRF verification.
-    DISABLE_SECURE_COOKIES: "1"
-    GOVUK_WEBSITE_ROOT: https://www.gov.uk
-    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
-    PLEK_SERVICE_SEARCH_API_URI: https://www.gov.uk/api
