@@ -38,6 +38,14 @@ RSpec.describe Preview do
       expect(preview.slug).to eq("frontend-my-feature-branch")
     end
 
+    it "replaces underscores in the branch, which aren't valid in a DNS label or Kubernetes object name" do
+      preview = build(:preview, app_name: "frontend", branch: "_my_feature_branch_")
+
+      preview.valid?
+
+      expect(preview.slug).to eq("frontend-my-feature-branch")
+    end
+
     it "truncates and appends a digest when the naive slug would exceed the 63-character DNS label limit" do
       enable_local_images
       preview = build(:preview, app_name: "govuk-publishing-components", branch: "local:main-807400d-dirty-20261006103043")
