@@ -48,6 +48,7 @@ class PreviewCapacity
       Rails.logger.info("PreviewCapacity: sleeping #{candidate.slug} to make room for #{root.slug}")
       sleeper = PreviewSleeper.new(candidate, api: api)
       sleeper.sleep!
+      Event.record!(:slept, candidate, automatic: true)
       sleeper.wait_until_asleep!
 
       (missing = shortfall).empty?
