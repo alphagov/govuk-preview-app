@@ -29,4 +29,13 @@
       ]
     end,
   } %>
+
+  <%= render "govuk_publishing_components/components/pagination", {
+    previous_page: (if @page > 1
+                      { href: events_path(page: @page - 1), title: "Newer events", label: "#{@page - 1} of #{@total_pages}" }
+                    end),
+    next_page: (if @page < @total_pages
+                  { href: events_path(page: @page + 1), title: "Older events", label: "#{@page + 1} of #{@total_pages}" }
+                end),
+  } %>
 <% end %>
