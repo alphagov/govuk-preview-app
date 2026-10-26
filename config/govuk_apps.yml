@@ -473,6 +473,59 @@ specialist-publisher:
     # production when asked to - as for its Heroku review apps.
     RUN_SEEDS_IN_PRODUCTION: "true"
 
+# Has no database - it keeps signed-in users in Redis. Not run alongside it
+# (so those features won't work in a preview): Support API, which every
+# request form (via Zendesk) and the feedback explorer go through - so it
+# has no worker either, as its only job sends requests on to Support API.
+support:
+  repo_url: https://github.com/alphagov/support.git
+  port_env_var: PORT
+  env:
+    # As for Whitehall, Publisher and Places Manager: without this, its
+    # cookies are marked `secure` (by force_ssl, in its case), so its session
+    # is never kept over our plain-HTTP entry point and every form
+    # submission fails CSRF verification.
+    DISABLE_SECURE_COOKIES: "1"
+    # Most of its pages (all of AuthorisationController's) fail without
+    # this. Dummy details, the same as its own development ones
+    # (config/emergency_contact_details.json).
+    EMERGENCY_CONTACT_DETAILS: |
+      {
+        "current_at": "2014-07-01",
+        "primary_contacts": {
+          "national_emergencies": {
+            "phone": "0555 555 555"
+          },
+          "major_technical_problems": {
+            "phone": "05555 555 555"
+          },
+          "urgent_mainstream_content_change": {
+            "phone": "05555 555 555"
+          },
+          "content_emergency": {
+            "email": "idasupport@email.uk"
+          }
+        },
+        "secondary_contacts": [
+          {
+            "name": "Billy Director",
+            "role": "Director",
+            "phone": "05555 555 555",
+            "email": "billy.director@email.uk"
+          },
+          {
+            "name": "Bob Manager",
+            "role": "Manager",
+            "phone": "05555 555 556",
+            "email": "bob.manager@email.uk"
+          }
+        ],
+        "verify_contacts": {
+          "ida_support_email": "idasupport@email.uk",
+          "out_of_hours_email": "outofhours@email.uk"
+        }
+      }
+
 # Not run alongside it (so those features won't work in a preview): Asset
 # Manager (attachments). Reads published content from the real GOV.UK
 # Content Store.

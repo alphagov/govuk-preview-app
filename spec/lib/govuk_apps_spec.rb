@@ -14,7 +14,7 @@ RSpec.describe GovukApps do
         "frontend", "draft-frontend", "content-store", "draft-content-store", "publishing-api", "whitehall",
         "govuk-publishing-components", "govuk-content-publishing-guidance",
         "collections", "feedback", "finder-frontend", "smart-answers", "places-manager",
-        "locations-api", "local-links-manager"
+        "locations-api", "local-links-manager", "support"
       )
     end
   end
@@ -203,6 +203,17 @@ RSpec.describe GovukApps do
         "GOVUK_WEBSITE_ROOT" => "https://www.gov.uk",
         "PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api",
       )
+    end
+
+    it "parses support, a plain app with no database, dependencies or worker" do
+      definition = described_class.find("support")
+
+      expect(definition.repo_url).to eq("https://github.com/alphagov/support.git")
+      expect(definition.database).to be_nil
+      expect(definition.dependencies).to eq([])
+      expect(definition.worker_command).to be_nil
+      expect(definition.env.keys).to contain_exactly("DISABLE_SECURE_COOKIES", "EMERGENCY_CONTACT_DETAILS")
+      expect(JSON.parse(definition.env["EMERGENCY_CONTACT_DETAILS"])).to include("current_at")
     end
 
     it "returns nil for an unknown app" do
