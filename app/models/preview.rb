@@ -95,6 +95,14 @@ class Preview < ApplicationRecord
     GovukApps.find(app_name).present?
   end
 
+  # Statuses with no job at work on the preview - see PreviewRebuilder.
+  REBUILDABLE_STATUSES = %w[running sleeping failed].freeze
+
+  # Only a whole stack is rebuilt, from its top-level preview.
+  def rebuildable?
+    parent_id.nil? && app_known? && status.in?(REBUILDABLE_STATUSES)
+  end
+
   # The top-level preview this one ultimately exists for (itself, if it has
   # no parent) - previews are slept, woken and charged for capacity as a
   # whole stack, via their root.

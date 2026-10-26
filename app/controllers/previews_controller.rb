@@ -32,6 +32,27 @@ class PreviewsController < ApplicationController
     @preview = Preview.find(params[:id])
   end
 
+  # Asks first, like deleting - a rebuild loses everything saved in the
+  # preview too.
+  def confirm_rebuild
+    @preview = Preview.find(params[:id])
+  end
+
+  # Tears the whole stack down and builds it again in place - see
+  # PreviewRebuilder.
+  def rebuild
+    preview = Preview.find(params[:id])
+    preview.record_interaction!
+    # Atomically, so a double-click only rebuilds once.
+    if preview.rebuildable? &&
+        Preview.where(id: preview.id, status: Preview::REBUILDABLE_STATUSES).update_all(status: "rebuilding", status_message: nil, updated_at: Time.current) == 1
+      Event.record!(:rebuilt, preview, user: current_user)
+      PreviewsRebuildJob.perform_async(preview.id)
+    end
+
+    redirect_to previews_path, notice: "Rebuilding preview of #{preview.app_name} (#{preview.branch})."
+  end
+
   # A one-shot read of a pod's recent log output - see KubernetesRunner#logs.
   def logs
     @preview = Preview.find(params[:id])

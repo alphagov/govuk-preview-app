@@ -69,6 +69,7 @@ module PreviewsHelper
     end
     actions << preview_post_link("Wake", wake_preview_path(preview), preview) if preview.sleeping?
     actions << preview_post_link("Retry", retry_preview_path(preview), preview) if preview.failed?
+    actions << rebuild_preview_link(preview) if preview.rebuildable?
     actions << delete_preview_link(preview)
 
     actions_cell(actions)
@@ -76,6 +77,16 @@ module PreviewsHelper
 
   def actions_cell(actions)
     tag.div(safe_join(actions, tag.span("|", class: "app-actions__separator", "aria-hidden": "true")), class: "app-actions")
+  end
+
+  # Destructive, like deleting, so it asks first too - see
+  # PreviewsController#confirm_rebuild.
+  def rebuild_preview_link(preview)
+    link_to(
+      safe_join(["Rebuild", preview_action_context(preview)]),
+      confirm_rebuild_preview_path(preview),
+      class: "govuk-link gem-link--destructive",
+    )
   end
 
   # Deleting asks first, on a page of its own - see
