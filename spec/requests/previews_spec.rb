@@ -261,6 +261,65 @@ RSpec.describe "Previews" do
     end
   end
 
+  describe "recording events" do
+    let(:user) { create(:user, email: "someone@example.com") }
+
+    def events
+      Event.order(:id).map { |event| [event.action, event.branch, event.user_email] }
+    end
+
+    it "records creating a preview, attributed to the signed in user" do
+      post previews_path, params: { preview: { app_name: "frontend", branch: "new-branch" } }
+
+      expect(events).to eq([["created", "new-branch", "someone@example.com"]])
+      expect(Event.last.preview_id).to eq(Preview.find_by(branch: "new-branch").id)
+    end
+
+    it "records nothing for a preview that couldn't be created" do
+      post previews_path, params: { preview: { app_name: "not-a-real-app", branch: "my-branch" } }
+
+      expect(events).to be_empty
+    end
+
+    it "records putting a preview to sleep, waking it, and adding or removing its full stack" do
+      sleepy = create(:preview, app_name: "whitehall", branch: "sleepy", status: :running)
+      asleep = create(:preview, app_name: "whitehall", branch: "asleep", status: :sleeping)
+      core = create(:preview, app_name: "whitehall", branch: "core", status: :running)
+      full = create(:preview, app_name: "whitehall", branch: "full", status: :running, full_stack: true)
+
+      post sleep_preview_path(sleepy)
+      post wake_preview_path(asleep)
+      post resize_preview_path(core, full_stack: true)
+      post resize_preview_path(full, full_stack: false)
+
+      expect(events).to eq([
+        ["slept", "sleepy", "someone@example.com"],
+        ["woken", "asleep", "someone@example.com"],
+        ["full_stack_added", "core", "someone@example.com"],
+        ["full_stack_removed", "full", "someone@example.com"],
+      ])
+    end
+
+    it "records nothing when there's nothing to do - e.g. sleeping a preview that isn't running, or waking one that's already waking" do
+      failed = create(:preview, app_name: "whitehall", branch: "failed", status: :failed)
+      waking = create(:preview, app_name: "whitehall", branch: "waking", status: :waking)
+
+      post sleep_preview_path(failed)
+      post wake_preview_path(waking)
+      post resize_preview_path(failed, full_stack: true)
+
+      expect(events).to be_empty
+    end
+
+    it "records deleting a preview" do
+      preview = create(:preview, app_name: "frontend", branch: "doomed", status: :running)
+
+      delete preview_path(preview)
+
+      expect(events).to eq([["deleted", "doomed", "someone@example.com"]])
+    end
+  end
+
   describe "GET /previews/:id/confirm_destroy" do
     it "asks before deleting, listing what will go with it" do
       preview = create(:preview, app_name: "whitehall", branch: "my-branch", status: :running)
