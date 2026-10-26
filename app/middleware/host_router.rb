@@ -45,13 +45,15 @@ class HostRouter
     request = Rack::Request.new(env)
     token = request.GET["preview_auth"]
     return accept_preview_access(request, token) if token.present? && PreviewSignon.uid_for_preview_access_token(token)
-    return redirect_to_login(request) unless authenticated?(request)
+
+    uid = visitor_uid(request)
+    return redirect_to_login(request) unless uid
 
     # A visit is an interaction - including one to a sleeping preview, which
     # wakes it.
     root = preview.root
     root.record_interaction!(throttle: true)
-    return waking_up(root) unless preview.running?
+    return waking_up(root, uid) unless preview.running?
 
     env["rack.backend"] = "http://#{KubernetesRunner.new(preview).service_host}"
     @proxy.call(env)
@@ -59,8 +61,9 @@ class HostRouter
 
 private
 
-  def authenticated?(request)
-    PreviewSignon.uid_for_preview_access_token(request.cookies[ACCESS_COOKIE].to_s).present?
+  # The Signon uid of whoever's visiting - nil if they haven't signed in.
+  def visitor_uid(request)
+    PreviewSignon.uid_for_preview_access_token(request.cookies[ACCESS_COOKIE].to_s).presence
   end
 
   def redirect_to_login(request)
@@ -136,10 +139,12 @@ private
     [404, { "content-type" => "text/plain; charset=utf-8" }, ["Not found"]]
   end
 
-  def waking_up(root)
+  def waking_up(root, uid)
     # Atomically, so that a burst of requests (a page and its assets) only
     # ever queues one wake.
     if Preview.where(id: root.id, status: :sleeping).update_all(status: "waking", updated_at: Time.current) == 1
+      # Anonymous if the visitor has no User here (any more).
+      Event.record!(:woken, root, user: User.find_by(uid:))
       PreviewsWakeJob.perform_async(root.id)
     end
 
