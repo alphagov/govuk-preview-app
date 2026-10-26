@@ -66,4 +66,21 @@ RSpec.describe PreviewDestroyer do
       expect(Preview.exists?(parent.id)).to be false
     end
   end
+
+  describe "#stop!" do
+    it "deletes everything the preview runs, and its dependents outright, but keeps its own record - e.g. to rebuild it" do
+      parent = create(:preview, app_name: "whitehall", branch: "my-branch")
+      dependent = create(:preview, app_name: "publishing-api", branch: "main", parent: parent)
+      runners = [parent, dependent].index_with { instance_double(KubernetesRunner, stop!: nil) }
+      runners.each { |preview, runner| allow(KubernetesRunner).to receive(:new).with(preview).and_return(runner) }
+      allow(KubernetesDatabaseRunner).to receive(:new).and_return(instance_double(KubernetesDatabaseRunner, stop!: nil))
+
+      described_class.new(parent).stop!
+
+      expect(runners.values).to all(have_received(:stop!))
+      expect(stack_redis).to have_received(:stop!)
+      expect(Preview.exists?(dependent.id)).to be false
+      expect(Preview.exists?(parent.id)).to be true
+    end
+  end
 end

@@ -11,6 +11,13 @@ class PreviewDestroyer
   end
 
   def destroy!
+    stop!
+    preview.destroy!
+  end
+
+  # Everything destroy! does except destroying the preview's own record -
+  # its dependents still go entirely. See PreviewRebuilder.
+  def stop!
     preview.dependents.each { |dependent| self.class.new(dependent).destroy! }
 
     KubernetesRunner.new(preview).stop!
@@ -21,7 +28,5 @@ class PreviewDestroyer
     database = GovukApps.find(preview.app_name)&.database
     KubernetesDatabaseRunner.new(preview, database).stop! if database || !preview.app_known?
     StackRedis.new(preview).stop! if preview.parent_id.nil?
-
-    preview.destroy!
   end
 end
