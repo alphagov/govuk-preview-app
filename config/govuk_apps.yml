@@ -526,6 +526,31 @@ support:
         }
       }
 
+# Support's backend: anonymous feedback, organisations, and raising Zendesk
+# tickets. Not run alongside it (so those features won't work in a
+# preview): S3 and GOV.UK Notify, which feedback CSV exports need. Has no
+# worker: its jobs only handle feedback sent by the Feedback app (not run
+# alongside it either) and those exports.
+support-api:
+  repo_url: https://github.com/alphagov/support-api.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:17
+  # Organisations from the real GOV.UK (see GOVUK_WEBSITE_ROOT) - e.g. for
+  # Support's organisation dropdowns.
+  setup_tasks:
+    - api_sync:import_organisations
+  env:
+    # Logs each ticket instead of raising it with GOV.UK's real Zendesk -
+    # needs alphagov/support-api's own escape hatch.
+    DISABLE_ZENDESK: "1"
+    # Where its Organisations API is (GdsApi.organisations), and the site its
+    # feedback's links point at - the same content as the real GOV.UK
+    # Content Store it reads.
+    GOVUK_WEBSITE_ROOT: https://www.gov.uk
+    PLEK_SERVICE_CONTENT_STORE_URI: https://www.gov.uk/api
+
 # Not run alongside it (so those features won't work in a preview): Asset
 # Manager (attachments). Reads published content from the real GOV.UK
 # Content Store.

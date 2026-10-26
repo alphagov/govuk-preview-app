@@ -14,7 +14,7 @@ RSpec.describe GovukApps do
         "frontend", "draft-frontend", "content-store", "draft-content-store", "publishing-api", "whitehall",
         "govuk-publishing-components", "govuk-content-publishing-guidance",
         "collections", "feedback", "finder-frontend", "smart-answers", "places-manager",
-        "locations-api", "local-links-manager", "support"
+        "locations-api", "local-links-manager", "support", "support-api"
       )
     end
   end
@@ -214,6 +214,20 @@ RSpec.describe GovukApps do
       expect(definition.worker_command).to be_nil
       expect(definition.env.keys).to contain_exactly("DISABLE_SECURE_COOKIES", "EMERGENCY_CONTACT_DETAILS")
       expect(JSON.parse(definition.env["EMERGENCY_CONTACT_DETAILS"])).to include("current_at")
+    end
+
+    it "parses support-api" do
+      definition = described_class.find("support-api")
+
+      expect(definition.repo_url).to eq("https://github.com/alphagov/support-api.git")
+      expect(definition.database.adapter).to eq("postgresql")
+      expect(definition.setup_tasks).to eq(%w[api_sync:import_organisations])
+      expect(definition.publicly_readable).to be(false)
+      expect(definition.env).to eq(
+        "DISABLE_ZENDESK" => "1",
+        "GOVUK_WEBSITE_ROOT" => "https://www.gov.uk",
+        "PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api",
+      )
     end
 
     it "returns nil for an unknown app" do
