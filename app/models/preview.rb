@@ -176,7 +176,10 @@ private
     # app+branch - otherwise two previews both depending on
     # publishing-api/main would collide.
     base = "#{base}-for-#{parent.slug}" if parent.present?
-    self.slug ||= self.class.fit_slug(base.parameterize)
+    # parameterize keeps underscores, but they aren't valid in a DNS label
+    # or a Kubernetes object name - swapped first so parameterize can then
+    # squash and strip the resulting separators.
+    self.slug ||= self.class.fit_slug(base.tr("_", "-").parameterize)
   end
 
   def generate_public_hostname
