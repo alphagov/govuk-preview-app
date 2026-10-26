@@ -209,9 +209,9 @@ RSpec.describe "Previews" do
 
       rows = Capybara::Node::Simple.new(response.body).all("table tbody tr").to_h { |row| [row.all("td")[1].text, preview_actions_in(row)] }
       expect(rows).to eq(
-        "core-one" => ["View logs", "Sleep", "Add full stack", "Delete"],
-        "full-one" => ["View logs", "Sleep", "Remove full stack", "Delete"],
-        "no-extras" => ["View logs", "Sleep", "Delete"],
+        "core-one" => ["View logs", "Sleep", "Add full stack", "Rebuild", "Delete"],
+        "full-one" => ["View logs", "Sleep", "Remove full stack", "Rebuild", "Delete"],
+        "no-extras" => ["View logs", "Sleep", "Rebuild", "Delete"],
       )
     end
 
@@ -219,14 +219,19 @@ RSpec.describe "Previews" do
       create(:preview, app_name: "collections", branch: "running-one", status: :running)
       create(:preview, app_name: "collections", branch: "sleeping-one", status: :sleeping)
       create(:preview, app_name: "collections", branch: "failed-one", status: :failed)
+      create(:preview, app_name: "collections", branch: "starting-one", status: :starting)
+      create(:preview, app_name: "collections", branch: "rebuilding-one", status: :rebuilding)
 
       get previews_path
 
       rows = Capybara::Node::Simple.new(response.body).all("table tbody tr").to_h { |row| [row.all("td")[1].text, preview_actions_in(row)] }
       expect(rows).to eq(
-        "running-one" => ["View logs", "Sleep", "Delete"],
-        "sleeping-one" => ["View logs", "Wake", "Delete"],
-        "failed-one" => ["View logs", "Retry", "Delete"],
+        "running-one" => ["View logs", "Sleep", "Rebuild", "Delete"],
+        "sleeping-one" => ["View logs", "Wake", "Rebuild", "Delete"],
+        "failed-one" => ["View logs", "Retry", "Rebuild", "Delete"],
+        # Mid-build or mid-rebuild: there's a job already at work on it.
+        "starting-one" => ["View logs", "Delete"],
+        "rebuilding-one" => ["View logs", "Delete"],
       )
     end
   end
@@ -317,6 +322,49 @@ RSpec.describe "Previews" do
       delete preview_path(preview)
 
       expect(events).to eq([["deleted", "doomed", "someone@example.com"]])
+    end
+  end
+
+  describe "GET /previews/:id/confirm_rebuild" do
+    it "asks before rebuilding, listing what will be rebuilt with it and saying what's lost" do
+      preview = create(:preview, app_name: "whitehall", branch: "my-branch", status: :running)
+      create(:preview, app_name: "publishing-api", branch: "main", parent: preview, status: :running)
+
+      get confirm_rebuild_preview_path(preview)
+
+      page = Capybara::Node::Simple.new(response.body)
+      expect(page).to have_css("h1", text: "Rebuild preview of whitehall (my-branch)?")
+      expect(page).to have_css("li", text: "publishing-api (main)")
+      expect(page).to have_text("Anything published or saved in it is lost")
+      expect(page).to have_css("form[action='#{rebuild_preview_path(preview)}']")
+      expect(page).to have_button("Rebuild preview")
+    end
+  end
+
+  describe "POST /previews/:id/rebuild" do
+    let(:user) { create(:user, email: "someone@example.com") }
+
+    it "marks the preview as rebuilding, queues the rebuild, and records who asked for it" do
+      preview = create(:preview, app_name: "whitehall", branch: "my-branch", status: :running, last_interacted_at: 3.days.ago)
+
+      expect { post rebuild_preview_path(preview) }.to change(PreviewsRebuildJob.jobs, :size).by(1)
+
+      expect(response).to redirect_to(previews_path)
+      expect(preview.reload).to have_attributes(status: "rebuilding")
+      expect(preview.last_interacted_at).to be_within(1.minute).of(Time.current)
+      expect(Event.sole).to have_attributes(action: "rebuilt", preview_id: preview.id, user_email: "someone@example.com")
+    end
+
+    it "does nothing to a preview that's mid-build, or already being rebuilt" do
+      starting = create(:preview, app_name: "whitehall", branch: "starting", status: :starting)
+      rebuilding = create(:preview, app_name: "whitehall", branch: "rebuilding", status: :rebuilding)
+
+      post rebuild_preview_path(starting)
+      post rebuild_preview_path(rebuilding)
+
+      expect(PreviewsRebuildJob.jobs).to be_empty
+      expect(Event.count).to eq(0)
+      expect(starting.reload.status).to eq("starting")
     end
   end
 
@@ -417,6 +465,7 @@ RSpec.describe "Previews" do
       actions = Capybara::Node::Simple.new(response.body).find(".app-actions")
       expect(actions).to have_css("a.govuk-link[href='#{logs_preview_path(preview)}']", text: "View logs frontend (my-branch)")
       expect(actions).to have_css("button.govuk-link", text: "Sleep frontend (my-branch)")
+      expect(actions).to have_css("a.govuk-link.gem-link--destructive[href='#{confirm_rebuild_preview_path(preview)}']", text: "Rebuild frontend (my-branch)")
       expect(actions).to have_css("a.govuk-link.gem-link--destructive[href='#{confirm_destroy_preview_path(preview)}']", text: "Delete frontend (my-branch)")
       expect(actions).to have_css(".app-actions__separator[aria-hidden='true']", text: "|")
     end

@@ -21,6 +21,8 @@ class Preview < ApplicationRecord
     sleeping: "sleeping",
     waking: "waking",
     stopping: "stopping",
+    # Being torn down to be built again from scratch - see PreviewRebuilder.
+    rebuilding: "rebuilding",
     failed: "failed",
   }, default: :queued
 
@@ -91,6 +93,14 @@ class Preview < ApplicationRecord
   # more - only deleted - and code that looks its app up mustn't assume it.
   def app_known?
     GovukApps.find(app_name).present?
+  end
+
+  # Statuses with no job at work on the preview - see PreviewRebuilder.
+  REBUILDABLE_STATUSES = %w[running sleeping failed].freeze
+
+  # Only a whole stack is rebuilt, from its top-level preview.
+  def rebuildable?
+    parent_id.nil? && app_known? && status.in?(REBUILDABLE_STATUSES)
   end
 
   # The top-level preview this one ultimately exists for (itself, if it has

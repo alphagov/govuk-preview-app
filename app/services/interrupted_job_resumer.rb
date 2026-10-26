@@ -10,7 +10,8 @@ require "sidekiq/api"
 # Safe because every one of these jobs can be re-run from any point:
 # PreviewBuilder reuses whatever dependency previews already exist and
 # leaves running ones alone, waking just scales things up (again), and
-# PreviewDestroyer ignores objects that are already gone.
+# PreviewDestroyer (which a rebuild starts with, too) ignores objects that
+# are already gone.
 #
 # Run once, by the worker only, at boot (see kubernetes/local/
 # preview-app.yaml) - not by the web pod too, which boots at the same time
@@ -20,6 +21,7 @@ class InterruptedJobResumer
     PreviewsCreateJob => %w[queued waiting_for_image starting],
     PreviewsWakeJob => %w[waking],
     PreviewsDestroyJob => %w[stopping],
+    PreviewsRebuildJob => %w[rebuilding],
   }.freeze
 
   def self.run!

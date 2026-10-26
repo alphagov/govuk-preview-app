@@ -51,7 +51,12 @@ class KubernetesDatabaseRunner
   def stop!
     api.delete(api.path("apps/v1", "statefulsets", container_name))
     api.delete(api.path("v1", "services", container_name))
-    api.delete(api.path("v1", "persistentvolumeclaims", "data-#{container_name}-0"))
+    api.delete(api.path("v1", "persistentvolumeclaims", claim_name))
+  end
+
+  # The volume the StatefulSet's volumeClaimTemplates make for its one pod.
+  def claim_name
+    "data-#{container_name}-0"
   end
 
   # Sleeping (0) and waking (1) - see PreviewSleeper. The volume stays

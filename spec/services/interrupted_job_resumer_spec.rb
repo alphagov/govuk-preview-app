@@ -46,6 +46,13 @@ RSpec.describe InterruptedJobResumer do
       expect(PreviewsDestroyJob.jobs.last["args"].first).to eq(preview.id)
     end
 
+    it "re-queues a rebuild left mid-teardown" do
+      preview = create(:preview, app_name: "frontend", branch: "my-branch", status: :rebuilding)
+
+      expect { described_class.run! }.to change(PreviewsRebuildJob.jobs, :size).by(1)
+      expect(PreviewsRebuildJob.jobs.last["args"].first).to eq(preview.id)
+    end
+
     it "re-queues waking a preview left mid-wake" do
       preview = create(:preview, app_name: "frontend", branch: "my-branch", status: :waking)
 

@@ -12,6 +12,7 @@ class Event < ApplicationRecord
     slept: "slept",
     woken: "woken",
     deleted: "deleted",
+    rebuilt: "rebuilt",
   }
 
   def self.record!(action, preview, user: nil, automatic: false)
