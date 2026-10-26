@@ -22,6 +22,11 @@
         active: request.path.start_with?(resources_path),
       },
       {
+        text: "Events",
+        href: events_path,
+        active: request.path.start_with?(events_path),
+      },
+      {
         text: "Switch app",
         # external_url_for, not find: GOVUK_APP_DOMAIN (what find uses) is
         # "" (empty) in the shared govuk-apps-env ConfigMap every app

@@ -25,5 +25,8 @@ Rails.application.routes.draw do
   # ResourceUsage.
   resource :resources, only: :show
 
+  # Who did what to which preview, and when - see Event.
+  resources :events, only: :index
+
   root to: redirect("/previews")
 end
