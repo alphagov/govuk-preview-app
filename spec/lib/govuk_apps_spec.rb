@@ -205,13 +205,15 @@ RSpec.describe GovukApps do
       )
     end
 
-    it "parses support, a plain app with no database, dependencies or worker" do
+    it "parses support, which has no database but runs alongside Support API" do
       definition = described_class.find("support")
 
       expect(definition.repo_url).to eq("https://github.com/alphagov/support.git")
       expect(definition.database).to be_nil
-      expect(definition.dependencies).to eq([])
-      expect(definition.worker_command).to be_nil
+      expect(definition.dependencies.map(&:to_h)).to eq([
+        { app: "support-api", full_stack_mode_only: false, include_its_full_stack_dependencies_when_running_in_full_stack_mode: false },
+      ])
+      expect(definition.worker_command).to eq(["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"])
       expect(definition.env.keys).to contain_exactly("DISABLE_SECURE_COOKIES", "EMERGENCY_CONTACT_DETAILS")
       expect(JSON.parse(definition.env["EMERGENCY_CONTACT_DETAILS"])).to include("current_at")
     end
