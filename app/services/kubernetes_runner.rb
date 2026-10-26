@@ -255,7 +255,11 @@ class KubernetesRunner
     api.delete(api.path("v1", "services", container_name))
     api.delete(api.path("v1", "configmaps", overrides_name))
     api.delete(api.path("batch/v1", "jobs"), labelSelector: "govuk-preview-app/preview-id=#{preview.id}")
-    persistent_volumes.each_key { |volume| api.delete(api.path("v1", "persistentvolumeclaims", claim_name(volume))) }
+    claim_names.each { |name| api.delete(api.path("v1", "persistentvolumeclaims", name)) }
+  end
+
+  def claim_names
+    persistent_volumes.keys.map { |volume| claim_name(volume) }
   end
 
   # Sleeping (0) and waking (1) a preview - see PreviewSleeper. The

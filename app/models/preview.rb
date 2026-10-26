@@ -21,6 +21,8 @@ class Preview < ApplicationRecord
     sleeping: "sleeping",
     waking: "waking",
     stopping: "stopping",
+    # Being torn down to be built again from scratch - see PreviewRebuilder.
+    rebuilding: "rebuilding",
     failed: "failed",
   }, default: :queued
 
