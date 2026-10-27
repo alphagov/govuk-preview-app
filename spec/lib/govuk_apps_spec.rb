@@ -14,7 +14,7 @@ RSpec.describe GovukApps do
         "frontend", "draft-frontend", "content-store", "draft-content-store", "publishing-api", "whitehall",
         "govuk-publishing-components", "govuk-content-publishing-guidance",
         "collections", "feedback", "finder-frontend", "smart-answers", "places-manager",
-        "locations-api", "local-links-manager", "support"
+        "locations-api", "local-links-manager", "support", "support-api"
       )
     end
   end
@@ -205,15 +205,31 @@ RSpec.describe GovukApps do
       )
     end
 
-    it "parses support, a plain app with no database, dependencies or worker" do
+    it "parses support, which has no database but runs alongside Support API" do
       definition = described_class.find("support")
 
       expect(definition.repo_url).to eq("https://github.com/alphagov/support.git")
       expect(definition.database).to be_nil
-      expect(definition.dependencies).to eq([])
-      expect(definition.worker_command).to be_nil
+      expect(definition.dependencies.map(&:to_h)).to eq([
+        { app: "support-api", full_stack_mode_only: false, include_its_full_stack_dependencies_when_running_in_full_stack_mode: false },
+      ])
+      expect(definition.worker_command).to eq(["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"])
       expect(definition.env.keys).to contain_exactly("DISABLE_SECURE_COOKIES", "EMERGENCY_CONTACT_DETAILS")
       expect(JSON.parse(definition.env["EMERGENCY_CONTACT_DETAILS"])).to include("current_at")
+    end
+
+    it "parses support-api" do
+      definition = described_class.find("support-api")
+
+      expect(definition.repo_url).to eq("https://github.com/alphagov/support-api.git")
+      expect(definition.database.adapter).to eq("postgresql")
+      expect(definition.setup_tasks).to eq(%w[api_sync:import_organisations])
+      expect(definition.publicly_readable).to be(false)
+      expect(definition.env).to eq(
+        "DISABLE_ZENDESK" => "1",
+        "GOVUK_WEBSITE_ROOT" => "https://www.gov.uk",
+        "PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api",
+      )
     end
 
     it "returns nil for an unknown app" do
