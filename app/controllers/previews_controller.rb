@@ -17,6 +17,7 @@ class PreviewsController < ApplicationController
     @preview = Preview.new(preview_params.merge(last_interacted_at: Time.current))
 
     if @preview.save
+      Event.record!(:created, @preview, user: current_user)
       PreviewsCreateJob.perform_async(@preview.id)
       redirect_to previews_path, notice: "Preview of #{@preview.app_name} (#{@preview.branch}) queued."
     else
@@ -46,6 +47,7 @@ class PreviewsController < ApplicationController
     # if its app_name/branch would no longer pass validation (e.g. the
     # manifest entry it was created against has since been renamed/removed).
     preview.update_column(:status, :stopping)
+    Event.record!(:deleted, preview, user: current_user)
     PreviewsDestroyJob.perform_async(preview.id)
 
     redirect_to previews_path, notice: "Preview of #{preview.app_name} (#{preview.branch}) is being removed."
@@ -55,7 +57,10 @@ class PreviewsController < ApplicationController
   def put_to_sleep
     preview = Preview.find(params[:id])
     preview.record_interaction!
-    PreviewsSleepJob.perform_async(preview.id) if preview.running?
+    if preview.running?
+      Event.record!(:slept, preview, user: current_user)
+      PreviewsSleepJob.perform_async(preview.id)
+    end
 
     redirect_to previews_path, notice: "Preview of #{preview.app_name} (#{preview.branch}) is going to sleep."
   end
@@ -64,6 +69,7 @@ class PreviewsController < ApplicationController
     preview = Preview.find(params[:id])
     preview.record_interaction!
     if Preview.where(id: preview.id, status: :sleeping).update_all(status: "waking", updated_at: Time.current) == 1
+      Event.record!(:woken, preview, user: current_user)
       PreviewsWakeJob.perform_async(preview.id)
     end
 
@@ -76,7 +82,10 @@ class PreviewsController < ApplicationController
     preview = Preview.find(params[:id])
     preview.record_interaction!
     full_stack = params[:full_stack] == "true"
-    PreviewsResizeJob.perform_async(preview.id, full_stack) if preview.running? && preview.parent.blank?
+    if preview.running? && preview.parent.blank?
+      Event.record!(full_stack ? :full_stack_added : :full_stack_removed, preview, user: current_user)
+      PreviewsResizeJob.perform_async(preview.id, full_stack)
+    end
 
     redirect_to previews_path, notice: "#{full_stack ? 'Adding' : 'Removing'} the full stack for #{preview.app_name} (#{preview.branch})."
   end

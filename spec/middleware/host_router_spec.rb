@@ -4,10 +4,10 @@ RSpec.describe HostRouter do
   let(:app) { ->(_env) { [200, {}, ["app response"]] } }
   let(:router) { described_class.new(app) }
 
-  def env_for(host_with_optional_port, path: "/", authenticated: true)
+  def env_for(host_with_optional_port, path: "/", authenticated: true, user: nil)
     env = Rack::MockRequest.env_for("http://#{host_with_optional_port}#{path}")
     if authenticated
-      token = PreviewSignon.issue_preview_access_token(create(:user))
+      token = PreviewSignon.issue_preview_access_token(user || create(:user))
       env["HTTP_COOKIE"] = "_govuk_preview_access=#{token}"
     end
     env
@@ -210,6 +210,36 @@ RSpec.describe HostRouter do
 
       expect(status).to eq(503)
       expect(PreviewsWakeJob.jobs.map { |job| job["args"].first }).to eq([parent.id])
+    end
+
+    it "records one wake, attributed to whoever visited, however many requests arrive" do
+      preview = create(:preview, app_name: "frontend", branch: "my-branch", status: :sleeping)
+      visitor = create(:user, email: "visitor@example.com")
+
+      3.times { router.call(env_for(preview.hostname, user: visitor)) }
+
+      expect(Event.all.map { |event| [event.action, event.preview_id, event.attribution] })
+        .to eq([["woken", preview.id, "visitor@example.com"]])
+    end
+
+    it "records a wake from a dependency's public hostname against the whole stack's preview" do
+      parent = create(:preview, app_name: "publishing-api", branch: "my-branch", status: :sleeping)
+      dependent = create(:preview, app_name: "content-store", branch: "main", parent: parent, status: :sleeping)
+
+      router.call(env_for(dependent.hostname))
+
+      expect(Event.sole).to have_attributes(action: "woken", preview_id: parent.id, branch: "my-branch")
+    end
+
+    it "records an anonymous wake when the visitor's sign-in no longer matches a user" do
+      preview = create(:preview, app_name: "frontend", branch: "my-branch", status: :sleeping)
+      visitor = create(:user)
+      env = env_for(preview.hostname, user: visitor)
+      visitor.destroy!
+
+      router.call(env)
+
+      expect(Event.sole.attribution).to eq("Anonymous")
     end
 
     it "shows why a preview couldn't be woken" do

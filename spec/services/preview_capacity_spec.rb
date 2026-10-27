@@ -111,6 +111,18 @@ RSpec.describe PreviewCapacity do
       expect(sleepers).not_to have_key(newer.id)
     end
 
+    it "records an automatic event for each preview it puts to sleep" do
+      victim = create(:preview, app_name: "whitehall", branch: "victim", status: :running, last_interacted_at: 2.hours.ago)
+      stub_request(:get, k8s_url(quota_path)).to_return(
+        json_response({ status: { hard: { "requests.memory" => "1Gi" }, used: { "requests.memory" => "1Gi" } } }),
+        json_response({ status: { hard: { "requests.memory" => "1Gi" }, used: { "requests.memory" => "200Mi" } } }),
+      )
+
+      capacity.make_room!
+
+      expect(Event.sole).to have_attributes(action: "slept", preview_id: victim.id, automatic: true, user_email: nil)
+    end
+
     it "never sleeps a preview used in the last 15 minutes, or one that isn't running, and says why it can't make room" do
       create(:preview, app_name: "frontend", branch: "recent", status: :running, last_interacted_at: 5.minutes.ago)
       create(:preview, app_name: "frontend", branch: "building", status: :starting)
