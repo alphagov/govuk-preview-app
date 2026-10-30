@@ -14,7 +14,8 @@ RSpec.describe GovukApps do
         "frontend", "draft-frontend", "content-store", "draft-content-store", "publishing-api", "whitehall",
         "govuk-publishing-components", "govuk-content-publishing-guidance",
         "collections", "feedback", "finder-frontend", "smart-answers", "places-manager",
-        "locations-api", "local-links-manager", "support", "support-api"
+        "locations-api", "local-links-manager", "support", "support-api",
+        "content-tagger"
       )
     end
   end
