@@ -625,3 +625,16 @@ whitehall:
     # never persist across requests. Any truthy value works.
     DISABLE_SECURE_COOKIES: "1"
     GOVUK_UPLOADS_ROOT: /uploads
+
+content-tagger:
+  memory:
+    request: 224Mi
+    limit: 512Mi
+  repo_url: https://github.com/alphagov/content-tagger.git
+  port_env_var: PORT
+  database:
+    adapter: postgresql
+    image: postgres:17
+  dependencies:
+    - app: publishing-api
+  worker_command: ["bundle", "exec", "sidekiq", "-C", "./config/sidekiq.yml"]
