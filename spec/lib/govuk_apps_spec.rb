@@ -106,7 +106,6 @@ RSpec.describe GovukApps do
       expect(definition.env).to eq(
         "GOVUK_WEBSITE_ROOT" => "https://www.gov.uk",
         "PLEK_SERVICE_CONTENT_STORE_URI" => "https://www.gov.uk/api",
-        "PLEK_SERVICE_RUMMAGER_URI" => "https://www.gov.uk/api",
         "MAIN_COMPONENT_GUIDE" => "true",
         "RAILS_ENV" => "development",
         "RACK_ENV" => "development",
