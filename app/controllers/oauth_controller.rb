@@ -7,7 +7,10 @@
 # needed, landing back on this same URL once signed in - so by the time
 # we get here, current_user is a real, Signon-authenticated Preview App
 # user. No separate consent screen, mirroring Signon's own trust of
-# first-party GOV.UK apps.
+# first-party GOV.UK apps. Only Signon's own "signin" permission is needed
+# here, not the "admin" one the rest of Preview App requires - anyone with
+# access to Preview App at all can view any preview, but only admins can
+# manage them.
 #
 # Previews currently live under a *different* domain to Preview App
 # itself (see Preview.base_domain's own comment), so there's no cookie
@@ -18,6 +21,8 @@
 # this round trip only has to happen once. See PreviewSignon for the
 # design rationale and the actual token logic.
 class OauthController < ApplicationController
+  skip_before_action :authorise_admin!
+
   def continue
     unless PreviewSignon.valid_preview_url?(params[:redirect_uri])
       render plain: "Invalid redirect_uri", status: :bad_request

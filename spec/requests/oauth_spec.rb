@@ -19,6 +19,14 @@ RSpec.describe "GET /oauth/continue" do
     expect(PreviewSignon.uid_for_preview_access_token(redirect_params["preview_auth"])).to eq(user.uid)
   end
 
+  it "doesn't need the admin permission - signin alone is enough to view a preview" do
+    login_as(create(:user, permissions: %w[signin]))
+
+    get "/oauth/continue", params: { redirect_uri: "#{preview.url}/some/page" }
+
+    expect(response).to have_http_status(:redirect)
+  end
+
   it "rejects a redirect_uri that isn't a real, running preview's own URL" do
     login_as(user)
 

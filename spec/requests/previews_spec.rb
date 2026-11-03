@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe "Previews" do
-  let(:user) { create(:user) }
+  let(:user) { create(:user, permissions: %w[signin admin]) }
 
   # Each row's action links/buttons, without the visually hidden text that
   # says which preview each is for.
@@ -10,6 +10,14 @@ RSpec.describe "Previews" do
   end
 
   before { login_as(user) }
+
+  it "forbids a signed-in user without the admin permission - signin alone is only for viewing previews themselves" do
+    login_as(create(:user, permissions: %w[signin]))
+
+    get previews_path
+
+    expect(response).to have_http_status(:forbidden)
+  end
 
   describe "GET /previews" do
     it "succeeds and lists existing previews" do
