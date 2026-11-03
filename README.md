@@ -57,6 +57,19 @@ A running preview can be switched between the two from the previews page (`Previ
 
 A dependency preview is normally internal-only - never hostname-routable, since most (e.g. Publishing API) are unauthenticated, state-mutating APIs. A manifest entry marked `publicly_readable: true` (e.g. Content Store) is the exception: it's routable at a short, randomised hostname (`Preview#generate_public_hostname`), unique to that one instance.
 
+### Access
+
+Viewing a preview needs a real Signon login: `HostRouter` sends anyone without one through `OauthController#continue` first. Signon only lets someone log in to an app at all if they have its `signin` permission, so there are two levels of access:
+
+- **`signin`** - can view any preview.
+- **`admin`** - can also use Preview App itself: creating, destroying and otherwise managing previews. Every page except `OauthController` needs it (`ApplicationController#authorise_admin!`).
+
+So that everyone in Signon can view previews without being granted access one by one, set up govuk-preview-app in integration Signon once:
+
+1. Edit its `signin` permission and tick "Default permission added to all new users", so everyone invited from then on gets it.
+2. Run `rake "users:grant_application_access[govuk-preview-app]"` in Signon once, to give it to every existing (unsuspended) user.
+3. Add an `admin` permission, and grant it to whoever should be able to manage previews.
+
 ### Isolation
 
 The `previews` namespace is a security boundary, not just tidiness:

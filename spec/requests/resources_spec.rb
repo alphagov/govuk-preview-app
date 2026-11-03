@@ -4,7 +4,7 @@ RSpec.describe "Resources" do
   let(:api) { kubernetes_api }
 
   before do
-    login_as(create(:user))
+    login_as(create(:user, permissions: %w[signin admin]))
     allow(KubernetesApi).to receive(:new).and_return(api)
     stub_request(:get, k8s_url(api.path("v1", "resourcequotas", "previews"))).to_return(json_response({
       status: {
@@ -21,6 +21,15 @@ RSpec.describe "Resources" do
 
   def page
     Capybara::Node::Simple.new(response.body)
+  end
+
+  it "forbids a signed-in user without the admin permission" do
+    stub_pods
+    login_as(create(:user, permissions: %w[signin]))
+
+    get resources_path
+
+    expect(response).to have_http_status(:forbidden)
   end
 
   it "is linked from the header" do
