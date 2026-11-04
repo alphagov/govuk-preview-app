@@ -31,6 +31,13 @@ class InterruptedJobResumer
       PreviewsResizeJob.perform_async(preview.id, preview.full_stack)
     end
 
+    # As is a refresh.
+    Preview.where(parent_id: nil, status: :running, status_message: PreviewRefresher::REFRESHING).find_each do |preview|
+      next if !preview.app_known? || job_pending?(PreviewsRefreshJob, preview)
+
+      PreviewsRefreshJob.perform_async(preview.id)
+    end
+
     JOBS.each do |job_class, statuses|
       Preview.where(parent_id: nil, status: statuses).find_each do |preview|
         # Nothing to build, wake or resize for an app that's been removed
