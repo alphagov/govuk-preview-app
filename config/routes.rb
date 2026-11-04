@@ -16,6 +16,7 @@ Rails.application.routes.draw do
       post :wake
       post :retry, action: :retry_build
       post :resize
+      post :refresh
       get :confirm_destroy
       get :logs
     end
