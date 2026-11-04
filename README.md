@@ -13,7 +13,7 @@ Preview App is a Rails app plus a Sidekiq worker. It never builds or runs anythi
 Nothing is built in the cluster. `ImageResolver` finds the image GOV.UK's own GitHub Actions already pushed to `ghcr.io/alphagov/govuk/<repo>`:
 
 - **`main`** - the app's latest release, tagged e.g. `v1234` by its own deploy workflow. Every dependency preview runs `main`, so these work out of the box.
-- **any other branch** - the image tagged with the branch's head commit SHA, pushed by the app's "Build image from PR" workflow (with pushing enabled). A preview waits (`waiting_for_image`) until it appears, so you can create one straight after pushing.
+- **any other branch** - the image tagged with the branch's head commit SHA, pushed by the app's "Build image from PR" workflow (with pushing enabled). A preview waits (`waiting_for_image`) until it appears, so you can create one straight after pushing. The head commit is looked up on GitHub, so this works for any branch with an open pull request, even one with a `/` in its name (which the workflow can't also tag the image with).
 - **`local:<tag>`** - local development only: an image built from your own checkout by `bin/preview-build` and loaded straight into the kind cluster. See [Previewing local code](#previewing-local-code).
 
 On integration, images are pulled through GOV.UK's ECR pull-through cache in front of GHCR (`PREVIEW_APP_IMAGE_REGISTRY`).
@@ -50,6 +50,12 @@ An app whose full stack includes its own Frontends can link to them too: e.g. Wh
 Whitehall's full stack runs its own Asset Manager, so uploads (e.g. a news story's lead image) can be seen on its Frontends: Whitehall builds asset URLs from it (`GOVUK_ASSET_ROOT`, via `env_aliases`). It stores files on a volume rather than S3, skips virus scanning, and serves every asset at its public hostname whether it's draft or not - only the pages that link to an asset decide whether it's seen. That hostname serves only assets (`public_paths`); its API stays internal to the cluster. Whitehall and Asset Manager each run their worker as a second container in their web pod, sharing a directory with it (`shared_volumes`).
 
 A running preview can be switched between the two from the previews page (`PreviewResizer`). Nothing already running is rebuilt or loses data: the extra apps are added (or removed), and anything whose dependency addresses change is restarted with the new ones (`PreviewBuilder#reconfigure!`). On adding the full stack, Publishing API then re-sends everything it holds to the new Content Stores (`resync_tasks` in the manifest).
+
+### Refreshing
+
+After pushing to a branch, a running preview can be refreshed from the previews page to pick up the branch's latest image, without deleting and rebuilding its stack (`PreviewRefresher`). Its image is resolved again - waiting, if need be, for the commit just pushed to finish building, rather than picking up the previous commit's image. Then its database is migrated with the new image (`db:migrate`, or `db:mongoid:create_indexes` for a Mongoid app) and only its own Deployments are restarted on it (`PreviewBuilder#reconfigure!`). Its dependencies, databases and everything published into them are kept. A `main` preview moves onto the app's latest release.
+
+Until the new version is up, the preview keeps serving the old one, saying it's refreshing; if the new image never appears, it carries on running the old one. A `local:` preview can't be refreshed - its image never changes - so build and create a new one instead.
 
 ### Routing
 
