@@ -3,6 +3,7 @@ require "rails_helper"
 RSpec.describe ImageResolver do
   let(:app) { GovukApps.find("whitehall") }
   let(:manifest_url) { %r{\Ahttps://ghcr\.io/v2/alphagov/govuk/whitehall/manifests/} }
+  let(:head_sha) { "ddb8ad658f610fa0ccf7c92630a577ca0d004fe9" }
 
   def resolver_for(branch)
     described_class.new(app, branch).tap { |resolver| allow(resolver).to receive(:pause) }
@@ -25,13 +26,41 @@ RSpec.describe ImageResolver do
     expect(resolver_for("main").resolve!).to eq("ghcr.io/alphagov/govuk/whitehall:v3355")
   end
 
-  it "resolves a branch to a tag matching its name, waiting until it's been pushed" do
-    manifest = stub_request(:head, "https://ghcr.io/v2/alphagov/govuk/whitehall/manifests/my-branch")
+  def stub_branch_head(branch_path, sha)
+    stub_request(:get, "https://api.github.com/repos/alphagov/whitehall/git/ref/heads/#{branch_path}")
+      .to_return(json_response({ object: { type: "commit", sha: } }))
+  end
+
+  it "resolves a branch to its head commit's image, waiting until it's been pushed" do
+    stub_branch_head("my-branch", head_sha)
+    manifest = stub_request(:head, "https://ghcr.io/v2/alphagov/govuk/whitehall/manifests/#{head_sha}")
       .to_return({ status: 404 }, { status: 200 })
 
-    expect(resolver_for("my-branch").resolve!).to eq("ghcr.io/alphagov/govuk/whitehall:my-branch")
+    expect(resolver_for("my-branch").resolve!).to eq("ghcr.io/alphagov/govuk/whitehall:#{head_sha}")
     expect(manifest).to have_been_requested.twice
-    expect(WebMock).not_to have_requested(:get, /github\.com/)
+  end
+
+  # "Build image from PR" can't tag the image with a branch name like this
+  # - but always tags it with the commit.
+  it "resolves a branch with slashes in its name" do
+    stub_branch_head("dependabot/bundler/rails-8.1", head_sha)
+    stub_request(:head, "https://ghcr.io/v2/alphagov/govuk/whitehall/manifests/#{head_sha}").to_return(status: 200)
+
+    expect(resolver_for("dependabot/bundler/rails-8.1").resolve!).to eq("ghcr.io/alphagov/govuk/whitehall:#{head_sha}")
+  end
+
+  it "keeps a branch name from changing which GitHub API path is asked for" do
+    stub_branch_head("a%23b%3Fc", head_sha)
+    stub_request(:head, "https://ghcr.io/v2/alphagov/govuk/whitehall/manifests/#{head_sha}").to_return(status: 200)
+
+    expect(resolver_for("a#b?c").resolve!).to eq("ghcr.io/alphagov/govuk/whitehall:#{head_sha}")
+  end
+
+  it "raises a helpful error for a branch that isn't on GitHub" do
+    stub_request(:get, "https://api.github.com/repos/alphagov/whitehall/git/ref/heads/no-such-branch").to_return(status: 404)
+
+    expect { resolver_for("no-such-branch").resolve! }
+      .to raise_error(described_class::ImageError, %(Couldn't find "no-such-branch" in alphagov/whitehall on GitHub))
   end
 
   it "points the image at PREVIEW_APP_IMAGE_REGISTRY when set (e.g. the ECR pull-through cache)" do
@@ -44,12 +73,13 @@ RSpec.describe ImageResolver do
   end
 
   it "raises a helpful error when the image never appears" do
+    stub_branch_head("my-branch", head_sha)
     stub_request(:head, manifest_url).to_return(status: 404)
     allow(ENV).to receive(:fetch).and_call_original
     allow(ENV).to receive(:fetch).with("PREVIEW_APP_IMAGE_WAIT_SECONDS", 1800).and_return("-1")
 
     expect { resolver_for("my-branch").resolve! }
-      .to raise_error(described_class::ImageError, /whitehall:my-branch was published.*Build image from PR/)
+      .to raise_error(described_class::ImageError, /whitehall:#{head_sha} \(my-branch's latest commit\) was published.*Build image from PR/)
   end
 
   describe "local: sources" do

@@ -14,10 +14,16 @@ require "net/http"
 #   tagged with its release tag (e.g. v1234). We use the latest release, so
 #   a dependency always runs whatever's currently on integration.
 # - any other branch - the app's "Build image from PR" workflow, with
-#   pushing enabled, tags every PR commit with the branch name itself (see
-#   Whitehall's, as the one repo currently set up this way). We wait for an
-#   image under that exact tag to appear, since a just-pushed branch's
-#   build may still be running.
+#   pushing enabled, tags every PR commit's image with its full commit SHA
+#   (see Whitehall's, and govuk-infrastructure's build-push-arm-image.yml
+#   it calls). We look up the branch's head commit on GitHub and wait for
+#   that commit's image to appear, since a just-pushed branch's build may
+#   still be running. Not the branch-name tag the workflow also pushes:
+#   that's skipped for a branch with a `/` in its name, and straight after
+#   a push it still points at the previous commit's image for the few
+#   minutes the build takes. A commit's tag is also new with every push,
+#   so a node always pulls it, never reusing an older image it already
+#   has under the same name.
 # - `local:<tag>` - locally only (PREVIEW_APP_LOCAL_IMAGES=true), an image
 #   built from a developer's own working tree by bin/preview-build and
 #   loaded straight into the kind cluster's node - so code that was never
@@ -68,7 +74,7 @@ class ImageResolver
   def resolve!
     return local_image if self.class.local?(branch)
 
-    tag = branch == "main" ? latest_release_tag : branch
+    tag = branch == "main" ? latest_release_tag : head_commit_sha
     wait_until_published!(tag)
     "#{registry}/#{image_name}:#{tag}"
   end
@@ -102,6 +108,13 @@ private
     github_get("/repos/#{repo_path}/releases/latest").fetch("tag_name")
   end
 
+  # Each part of the branch name is escaped, so it can't change which API
+  # path is asked for.
+  def head_commit_sha
+    ref = branch.split("/").map { |part| ERB::Util.url_encode(part) }.join("/")
+    github_get("/repos/#{repo_path}/git/ref/heads/#{ref}").dig("object", "sha")
+  end
+
   def github_get(path)
     uri = URI("#{GITHUB_API}#{path}")
     req = Net::HTTP::Get.new(uri)
@@ -123,8 +136,9 @@ private
 
     until published?(tag)
       if Time.current > deadline
+        commit = branch == "main" ? "" : " (#{branch}'s latest commit)"
         raise ImageError,
-              "No image #{GHCR}/#{GHCR_NAMESPACE}/#{image_name}:#{tag} was published within #{wait_timeout / 60} " \
+              "No image #{GHCR}/#{GHCR_NAMESPACE}/#{image_name}:#{tag}#{commit} was published within #{wait_timeout / 60} " \
               "minutes - check the \"Build image from PR\" workflow ran on this branch in #{repo_path}"
       end
 
