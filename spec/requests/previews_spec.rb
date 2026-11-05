@@ -196,6 +196,35 @@ RSpec.describe "Previews" do
       expect(PreviewsResizeJob.jobs.last["args"].first(2)).to eq([preview.id, true])
     end
 
+    it "queues refreshing a running preview onto its branch's latest image" do
+      preview = create(:preview, app_name: "whitehall", branch: "my-branch", status: :running)
+
+      expect { post refresh_preview_path(preview) }.to change(PreviewsRefreshJob.jobs, :size).by(1)
+      expect(PreviewsRefreshJob.jobs.last["args"].first).to eq(preview.id)
+      expect(response).to redirect_to(previews_path)
+    end
+
+    it "doesn't refresh a preview that isn't running, or a dependency" do
+      sleeping = create(:preview, app_name: "whitehall", branch: "my-branch", status: :sleeping)
+      parent = create(:preview, app_name: "whitehall", branch: "other-branch", status: :running)
+      dependency = create(:preview, app_name: "publishing-api", branch: "main", parent:, status: :running)
+
+      expect {
+        post refresh_preview_path(sleeping)
+        post refresh_preview_path(dependency)
+      }.not_to change(PreviewsRefreshJob.jobs, :size)
+    end
+
+    it "doesn't offer refreshing a preview of a local image, which never changes" do
+      enable_local_images
+      create(:preview, app_name: "collections", branch: "local:my-branch-abc1234", status: :running)
+
+      get previews_path
+
+      row = Capybara::Node::Simple.new(response.body).first("table tbody tr")
+      expect(preview_actions_in(row)).to eq(["View logs", "Sleep", "Delete"])
+    end
+
     it "creates a core stack unless the chosen app's full stack box is ticked" do
       post previews_path, params: { preview: { app_name: "whitehall", branch: "core-branch" } }
       post previews_path, params: { preview: { app_name: "whitehall", branch: "full-branch", full_stack_for: { "whitehall" => "true" } } }
@@ -217,9 +246,9 @@ RSpec.describe "Previews" do
 
       rows = Capybara::Node::Simple.new(response.body).all("table tbody tr").to_h { |row| [row.all("td")[1].text, preview_actions_in(row)] }
       expect(rows).to eq(
-        "core-one" => ["View logs", "Sleep", "Add full stack", "Delete"],
-        "full-one" => ["View logs", "Sleep", "Remove full stack", "Delete"],
-        "no-extras" => ["View logs", "Sleep", "Delete"],
+        "core-one" => ["View logs", "Sleep", "Refresh", "Add full stack", "Delete"],
+        "full-one" => ["View logs", "Sleep", "Refresh", "Remove full stack", "Delete"],
+        "no-extras" => ["View logs", "Sleep", "Refresh", "Delete"],
       )
     end
 
@@ -227,12 +256,14 @@ RSpec.describe "Previews" do
       create(:preview, app_name: "collections", branch: "running-one", status: :running)
       create(:preview, app_name: "collections", branch: "sleeping-one", status: :sleeping)
       create(:preview, app_name: "collections", branch: "failed-one", status: :failed)
+      create(:preview, app_name: "collections", branch: "refreshing-one", status: :running, status_message: PreviewRefresher::REFRESHING)
 
       get previews_path
 
       rows = Capybara::Node::Simple.new(response.body).all("table tbody tr").to_h { |row| [row.all("td")[1].text, preview_actions_in(row)] }
       expect(rows).to eq(
-        "running-one" => ["View logs", "Sleep", "Delete"],
+        "running-one" => ["View logs", "Sleep", "Refresh", "Delete"],
+        "refreshing-one" => ["View logs", "Sleep", "Delete"],
         "sleeping-one" => ["View logs", "Wake", "Delete"],
         "failed-one" => ["View logs", "Retry", "Delete"],
       )
@@ -254,6 +285,10 @@ RSpec.describe "Previews" do
 
       preview = create(:preview, app_name: "whitehall", branch: "resized", status: :running, last_interacted_at: 3.days.ago)
       post resize_preview_path(preview, full_stack: true)
+      expect(preview.reload.last_interacted_at).to be_within(1.minute).of(Time.current)
+
+      preview = create(:preview, app_name: "whitehall", branch: "refreshed", status: :running, last_interacted_at: 3.days.ago)
+      post refresh_preview_path(preview)
       expect(preview.reload.last_interacted_at).to be_within(1.minute).of(Time.current)
     end
 

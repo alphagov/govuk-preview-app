@@ -61,6 +61,14 @@ RSpec.describe InterruptedJobResumer do
       expect(PreviewsResizeJob.jobs.last["args"].first(2)).to eq([preview.id, true])
     end
 
+    it "re-queues a refresh left part-way" do
+      preview = create(:preview, app_name: "whitehall", branch: "my-branch", status: :running,
+                                 status_message: PreviewRefresher::REFRESHING)
+
+      expect { described_class.run! }.to change(PreviewsRefreshJob.jobs, :size).by(1)
+      expect(PreviewsRefreshJob.jobs.last["args"].first).to eq(preview.id)
+    end
+
     it "leaves finished previews, and dependents (built by their parent's job), alone" do
       parent = create(:preview, app_name: "whitehall", branch: "my-branch", status: :running)
       create(:preview, app_name: "publishing-api", branch: "main", parent: parent, status: :starting)

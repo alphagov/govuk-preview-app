@@ -81,6 +81,16 @@ class PreviewsController < ApplicationController
     redirect_to previews_path, notice: "#{full_stack ? 'Adding' : 'Removing'} the full stack for #{preview.app_name} (#{preview.branch})."
   end
 
+  # Moves a running preview onto its branch's latest image, e.g. after a
+  # push, keeping the rest of its stack - see PreviewRefresher.
+  def refresh
+    preview = Preview.find(params[:id])
+    preview.record_interaction!
+    PreviewsRefreshJob.perform_async(preview.id) if preview.running? && preview.parent.blank?
+
+    redirect_to previews_path, notice: "Refreshing #{preview.app_name} (#{preview.branch}) with its latest image."
+  end
+
   # Carries on a failed build from where it stopped: dependencies that
   # started are reused, and only what didn't finish is built again (see
   # PreviewBuilder#build!).

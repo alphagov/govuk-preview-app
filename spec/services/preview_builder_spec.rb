@@ -437,6 +437,56 @@ RSpec.describe PreviewBuilder do
       end
     end
 
+    context "when given a new image for a running preview (e.g. it's being refreshed)" do
+      before { stub_databases("postgresql://db/app_preview") }
+
+      it "migrates its database with the new image, then restarts it and its worker on it, keeping everything else" do
+        preview = create(:preview, app_name: "whitehall", branch: "my-branch", status: :running, env_digest: "stale")
+        publishing_api = create(:preview, app_name: "publishing-api", branch: "main", parent: preview, status: :running, env_digest: "stale")
+        calls = []
+        allow(runners[preview]).to receive(:run_setup_task!) { |task, **| calls << task }
+        allow(runners[preview]).to receive(:start!) { calls << :start! }
+
+        described_class.new(preview, image: "new-image").build!
+
+        expect(KubernetesRunner).to have_received(:new).with(preview, image: "new-image")
+        expect(runners[preview]).to have_received(:run_setup_task!)
+          .with("db:migrate", extra_env: hash_including("DATABASE_URL" => "postgresql://db/app_preview"))
+        expect(calls).to eq(["db:migrate", :start!])
+        expect(runners[preview]).to have_received(:start_worker!)
+        expect(runners[preview]).not_to have_received(:migrate!)
+        expect(KubernetesRunner).to have_received(:new).with(publishing_api, image: "existing-image")
+        expect(KubernetesRunner).not_to have_received(:new).with(publishing_api, image: "new-image")
+      end
+
+      it "creates a MongoDB app's indexes instead" do
+        preview = create(:preview, app_name: "manuals-publisher", branch: "my-branch", status: :running, env_digest: "stale")
+
+        described_class.new(preview, image: "new-image").build!
+
+        expect(runners[preview]).to have_received(:run_setup_task!).with("db:mongoid:create_indexes", extra_env: anything)
+      end
+
+      it "restarts it even when its dependency addresses haven't changed" do
+        preview = create(:preview, app_name: "collections", branch: "my-branch", status: :running,
+                                   env_digest: Digest::SHA256.hexdigest({}.to_json))
+
+        described_class.new(preview, image: "new-image").build!
+
+        expect(KubernetesRunner).to have_received(:new).with(preview, image: "new-image")
+        expect(runners[preview]).to have_received(:start!)
+      end
+
+      it "does nothing when it's already running that image" do
+        preview = create(:preview, app_name: "collections", branch: "my-branch", status: :running,
+                                   env_digest: Digest::SHA256.hexdigest({}.to_json))
+
+        described_class.new(preview, image: "existing-image").build!
+
+        expect(runners[preview]).not_to have_received(:start!)
+      end
+    end
+
     context "with an app that has setup_tasks (whitehall)" do
       before { stub_databases("mysql2://db/app_preview") }
 

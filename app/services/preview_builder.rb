@@ -17,11 +17,15 @@ class PreviewBuilder
     DependencyError,
   ].freeze
 
-  attr_reader :preview, :full_stack
+  attr_reader :preview, :full_stack, :image
 
-  def initialize(preview, full_stack: preview.full_stack)
+  # image: a new image for an already-running preview to switch to - see
+  # PreviewRefresher. Only ever this preview's own; its dependencies keep
+  # theirs.
+  def initialize(preview, full_stack: preview.full_stack, image: nil)
     @preview = preview
     @full_stack = full_stack
+    @image = image
   end
 
   # inherited_env carries PLEK_SERVICE_*_URI entries resolved by dependencies
@@ -118,8 +122,9 @@ private
 
   # Restarts an already-running preview's pods with new dependency
   # addresses if they've changed since it was started - e.g. when its stack
-  # is switched to or from the full stack. Only its Deployments are
-  # re-applied (same image), so its database is untouched. When the full
+  # is switched to or from the full stack - or on a new image, if it's been
+  # given one. Only its Deployments are re-applied, so its database is kept
+  # - just migrated first for a new image, as a deploy would. When the full
   # stack has just been added, its `resync_tasks` then fill the newly-added
   # dependencies (e.g. Publishing API re-sends everything to the new Content
   # Stores).
@@ -128,9 +133,13 @@ private
       database = KubernetesDatabaseRunner.new(preview, app.database)
       extra_env = extra_env.merge(database.env_var => database.database_url)
     end
-    return if preview.env_digest == digest(extra_env)
+    new_image = image.present? && image != KubernetesRunner.new(preview).current_image
+    return if preview.env_digest == digest(extra_env) && !new_image
 
-    runner = KubernetesRunner.new(preview, image: KubernetesRunner.new(preview).current_image)
+    runner = KubernetesRunner.new(preview, image: new_image ? image : KubernetesRunner.new(preview).current_image)
+    if new_image && app.database
+      runner.run_setup_task!(app.database.adapter == "mongodb" ? "db:mongoid:create_indexes" : "db:migrate", extra_env:)
+    end
     runner.start!(extra_env: extra_env)
     runner.start_worker!(extra_env: extra_env) if app.worker_command
     app.resync_tasks.each { |task| runner.run_setup_task!(task, extra_env: extra_env) } if preview.root.full_stack

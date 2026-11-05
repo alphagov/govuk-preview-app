@@ -52,7 +52,7 @@ module PreviewsHelper
   # A preview's actions, as links separated by pipes - like Whitehall's
   # admin tables. Each says which preview it's for to screen readers, as
   # Whitehall's do. A dependency only ever gets "View logs" - the rest
-  # (Sleep/Wake/Resize/Retry/Delete) act on its whole stack, so they're
+  # (Sleep/Wake/Refresh/Resize/Retry/Delete) act on its whole stack, so they're
   # only offered on the top-level preview they actually belong to.
   def preview_actions(preview)
     actions = [view_logs_link(preview)]
@@ -63,6 +63,11 @@ module PreviewsHelper
     return actions_cell(actions << delete_preview_link(preview)) unless preview.app_known?
 
     actions << preview_post_link("Sleep", sleep_preview_path(preview), preview) if preview.running?
+    # A local: image is fixed for good (see ImageResolver) - there's never
+    # a newer one to refresh onto.
+    if preview.running? && preview.status_message.blank? && !ImageResolver.local?(preview.branch)
+      actions << preview_post_link("Refresh", refresh_preview_path(preview), preview)
+    end
     if preview.running? && preview.status_message.blank? && GovukApps.full_stack_option?(preview.app_name)
       label = preview.full_stack? ? "Remove full stack" : "Add full stack"
       actions << preview_post_link(label, resize_preview_path(preview, full_stack: !preview.full_stack?), preview)
