@@ -202,6 +202,30 @@ RSpec.describe KubernetesRunner do
       )
     end
 
+    context "when a service_account has been specified" do
+      before do
+        publishing_api_app = GovukApps.find("publishing-api")
+        publishing_api_app.service_account = "my-service-account"
+        allow(GovukApps).to receive(:find).and_return(publishing_api_app)
+      end
+
+      it "attaches the service account and mounts the service account token" do
+        stub_request(:get, k8s_url(api.path("apps/v1", "deployments", name)))
+          .to_return(json_response({ status: {} }), json_response(rolled_out_deployment))
+
+        expect(runner.start!(extra_env: { "PLEK_SERVICE_CONTENT_STORE_URI" => "http://cs" })).to eq("deploy-uid")
+
+        service = applied_body("v1", "services", name)
+        expect(service.dig("spec", "ports", 0)).to include("port" => 80, "targetPort" => 3000)
+
+        deployment = applied_body("apps/v1", "deployments", name)
+        pod = deployment.dig("spec", "template", "spec")
+
+        expect(pod["serviceAccountName"]).to eq("my-service-account")
+        expect(pod["automountServiceAccountToken"]).to be(true)
+      end
+    end
+
     it "keeps waiting while the old pod is still serving, until the new version has fully rolled out" do
       old_pod_still_up = { metadata: { generation: 3 },
                            spec: { replicas: 1 },
