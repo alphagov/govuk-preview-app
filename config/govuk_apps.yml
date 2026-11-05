@@ -599,6 +599,7 @@ whitehall:
     PLEK_SERVICE_DRAFT_ORIGIN_URI: PLEK_SERVICE_DRAFT_FRONTEND_PUBLIC_URL
     GOVUK_ASSET_ROOT: PLEK_SERVICE_ASSET_MANAGER_PUBLIC_URL
   # Where uploads wait for the worker to send them to Asset Manager.
+  service_account: whitehall-admin
   shared_volumes:
     uploads:
       path: /uploads

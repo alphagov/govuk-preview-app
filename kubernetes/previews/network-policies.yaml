@@ -68,3 +68,23 @@ spec:
               - 172.16.0.0/12
               - 192.168.0.0/16
               - 169.254.0.0/16
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-k8s-api-egress
+  namespace: previews
+spec:
+  podSelector:
+    matchLabels:
+      govuk-preview-app/app: whitehall
+  policyTypes:
+    - Egress
+  egress:
+    # Rule 1: Allow TCP traffic to the Kubernetes API Server
+    - to:
+        - ipBlock:
+            cidr: 172.16.0.0/12
+      ports:
+        - protocol: TCP
+          port: 6443
