@@ -174,6 +174,8 @@ RSpec.describe KubernetesRunner do
       container = pod["containers"].first
 
       expect(container["image"]).to eq(image)
+
+      expect(pod["serviceAccountName"]).to be_nil
       expect(pod["automountServiceAccountToken"]).to be(false)
       expect(pod["enableServiceLinks"]).to be(false)
       expect(pod["securityContext"]).to include("runAsUser" => 1001, "seccompProfile" => { "type" => "RuntimeDefault" })
