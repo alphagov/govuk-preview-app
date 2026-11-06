@@ -10,6 +10,43 @@ module PreviewsHelper
     end
   end
 
+  # Revealed beneath an app's radio button on the new-preview form: its
+  # full stack box (if it has a full stack) and a branch for each app in
+  # its stack (if it has any dependencies). Nil when there's neither.
+  def app_options(app_name, preview)
+    chosen = preview.app_name == app_name
+    options = []
+    options << full_stack_checkbox(app_name, checked: chosen && preview.full_stack?) if GovukApps.full_stack_option?(app_name)
+    dependencies = GovukApps.stack_dependencies(app_name)
+    options << dependency_branch_fields(app_name, dependencies, chosen ? preview : Preview.new) if dependencies.any?
+    safe_join(options) if options.any?
+  end
+
+  # One compact row (label beside input) per app in the stack - most are
+  # left on `main`, so they shouldn't take up much room. Like the full
+  # stack box, each app gets its own fields - see
+  # PreviewsController#preview_params. Apps that only run in the full stack
+  # are marked with an asterisk, explained beneath the fields.
+  def dependency_branch_fields(app_name, dependencies, preview)
+    full_stack_only = GovukApps.full_stack_extras(app_name)
+    render "dependency_branches", app_name:, dependencies:, preview:, full_stack_only:
+  end
+
+  # The id of a dependency's branch field, which the error summary links to.
+  def dependency_branch_field_id(app_name, dependency)
+    "preview_dependency_branch_#{app_name.underscore}_#{dependency.underscore}"
+  end
+
+  # The error summary's link for each error: a dependency's own branch
+  # field, or the field named after the attribute.
+  def error_summary_href(preview, error)
+    if error.attribute == :dependency_branches
+      "##{dependency_branch_field_id(preview.app_name, error.options[:dependency])}"
+    else
+      "#preview_#{error.attribute}"
+    end
+  end
+
   # Revealed beneath an app's radio button on the new-preview form, for apps
   # whose full stack runs more than their core one. Each app gets its own
   # field (preview[full_stack_for][<app>]), so a box ticked under one app
