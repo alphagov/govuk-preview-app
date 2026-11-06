@@ -1,0 +1,41 @@
+<% content_for :page_title, "Events" %>
+
+<%= render "govuk_publishing_components/components/heading", text: "Events", heading_level: 1, margin_bottom: 6 %>
+
+<p class="govuk-body">
+  Every preview created, put to sleep, woken up, resized or deleted, and who did it. A preview woken up by
+  visiting it is attributed to whoever visited, and anything Preview App did itself (such as putting a preview
+  to sleep to make room for another) is marked as automatic.
+</p>
+
+<% if @events.empty? %>
+  <p class="govuk-body">There are no events yet.</p>
+<% else %>
+  <%= render "govuk_publishing_components/components/table", {
+    head: [
+      { text: "When" },
+      { text: "Action" },
+      { text: "App" },
+      { text: "Branch" },
+      { text: "By" },
+    ],
+    rows: @events.map do |event|
+      [
+        { text: preview_time(event.created_at) },
+        { text: event.action.humanize },
+        { text: event.app_name },
+        { text: event.branch },
+        { text: event.attribution },
+      ]
+    end,
+  } %>
+
+  <%= render "govuk_publishing_components/components/pagination", {
+    previous_page: (if @page > 1
+                      { href: events_path(page: @page - 1), title: "Newer events", label: "#{@page - 1} of #{@total_pages}" }
+                    end),
+    next_page: (if @page < @total_pages
+                  { href: events_path(page: @page + 1), title: "Older events", label: "#{@page + 1} of #{@total_pages}" }
+                end),
+  } %>
+<% end %>
