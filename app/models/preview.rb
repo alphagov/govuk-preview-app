@@ -29,6 +29,7 @@ class Preview < ApplicationRecord
   # (and maybe a database volume) that an AR callback can't clean up.
   # PreviewDestroyer deletes those explicitly before destroying the row.
   has_many :dependents, class_name: "Preview", foreign_key: :parent_id, inverse_of: :parent
+  has_many :dependency_branches, dependent: :delete_all
 
   validates :app_name, presence: true, inclusion: { in: -> { GovukApps.app_names } }
   validates :branch, presence: true
@@ -36,6 +37,7 @@ class Preview < ApplicationRecord
   validate :branch_is_a_usable_source
 
   before_validation :generate_slug, on: :create
+  before_validation :record_dependency_branches, on: :create
   before_validation :ignore_full_stack_without_option
   before_validation :generate_public_hostname, on: :create
 
@@ -98,6 +100,10 @@ class Preview < ApplicationRecord
   # whole stack, via their root.
   def root
     parent.present? ? parent.root : self
+  end
+
+  def dependency_branch(app_name)
+    dependency_branches.find_by!(app_name:).branch
   end
 
   # This preview and every dependency preview beneath it, at any depth.
@@ -164,6 +170,16 @@ private
       errors.add(:branch, "can only use a local image in local development")
     elsif !ImageResolver.local_tag(branch).match?(ImageResolver::LOCAL_TAG_FORMAT)
       errors.add(:branch, "has an invalid local image tag")
+    end
+  end
+
+  # Only a top-level preview records its dependencies' branches - for its
+  # full stack too, so they're already known if that's added later.
+  def record_dependency_branches
+    return if parent.present? || app_name.blank?
+
+    GovukApps.dependency_tree(app_name).uniq.each do |dependency|
+      dependency_branches.build(app_name: dependency, branch: "main")
     end
   end
 

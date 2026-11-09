@@ -10,9 +10,18 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_07_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_09_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "dependency_branches", force: :cascade do |t|
+    t.bigint "preview_id", null: false
+    t.string "app_name", null: false
+    t.string "branch", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["preview_id", "app_name"], name: "index_dependency_branches_on_preview_id_and_app_name", unique: true
+  end
 
   create_table "previews", force: :cascade do |t|
     t.string "app_name", null: false
@@ -48,5 +57,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_07_100000) do
     t.index ["uid"], name: "index_users_on_uid", unique: true
   end
 
+  add_foreign_key "dependency_branches", "previews"
   add_foreign_key "previews", "previews", column: "parent_id"
 end

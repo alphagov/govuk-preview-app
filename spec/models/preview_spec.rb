@@ -244,4 +244,21 @@ RSpec.describe Preview do
       expect(preview.errors[:branch]).to include("has an invalid local image tag")
     end
   end
+
+  describe "#dependency_branches" do
+    it "records main for every app in a top-level preview's stack, full stack included" do
+      preview = create(:preview, app_name: "whitehall")
+
+      expect(preview.dependency_branches.pluck(:app_name, :branch)).to match_array(
+        GovukApps.dependency_tree("whitehall").uniq.map { |app_name| [app_name, "main"] },
+      )
+    end
+
+    it "records none for a dependency preview" do
+      parent = create(:preview, app_name: "whitehall")
+      dependency = create(:preview, app_name: "publishing-api", parent:)
+
+      expect(dependency.dependency_branches).to be_empty
+    end
+  end
 end
