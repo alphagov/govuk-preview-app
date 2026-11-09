@@ -172,7 +172,7 @@ private
     propagated_env = to_start.each_with_object({}) do |dep, env|
       dep_name = dep.app
       dependent = preview.dependents.find_by(app_name: dep_name) ||
-        Preview.create!(app_name: dep_name, branch: "main", parent: preview)
+        Preview.create!(app_name: dep_name, branch: preview.root.dependency_branch(dep_name), parent: preview)
       dep_full_stack = full_stack && dep.include_its_full_stack_dependencies_when_running_in_full_stack_mode
       resolved_env = self.class.new(dependent, full_stack: dep_full_stack).build!(inherited_env: inherited_env.merge(env))
 

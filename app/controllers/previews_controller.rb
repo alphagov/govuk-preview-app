@@ -107,9 +107,17 @@ class PreviewsController < ApplicationController
 
 private
 
+  # Each app on the form has its own full stack box and dependency branch
+  # fields (e.g. preview[full_stack_for][whitehall]), so only the chosen
+  # app's are used - not ones filled in under an app that was then
+  # unselected.
   def preview_params
-    attributes = params.expect(preview: [:app_name, :branch, { full_stack_for: {} }])
+    attributes = params.expect(preview: [:app_name, :branch, { full_stack_for: {}, dependency_branches_for: {} }])
     full_stack_for = attributes.delete(:full_stack_for).to_h
-    attributes.merge(full_stack: full_stack_for[attributes[:app_name]] == "true")
+    dependency_branches_for = attributes.delete(:dependency_branches_for).to_h
+    attributes.merge(
+      full_stack: full_stack_for[attributes[:app_name]] == "true",
+      dependency_branches_attributes: dependency_branches_for.fetch(attributes[:app_name], {}).map { |app_name, branch| { app_name:, branch: } },
+    )
   end
 end

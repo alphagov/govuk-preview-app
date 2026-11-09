@@ -1,0 +1,22 @@
+<% hint_id = "preview_dependency_branches_#{app_name.underscore}_hint" %>
+<% full_stack_only = GovukApps.full_stack_extras(app_name) %>
+<%= render "govuk_publishing_components/components/fieldset", {
+  legend_text: "Dependency branches",
+  heading_size: "s",
+  describedby: hint_id,
+} do %>
+  <%= render "govuk_publishing_components/components/hint", id: hint_id, text: 'Any of the kinds of branch listed under "Branch" below.' %>
+  <% dependencies.each do |dependency| %>
+    <%= render "govuk_publishing_components/components/input", {
+      id: dependency_branch_field_id(app_name, dependency),
+      name: "preview[dependency_branches_for][#{app_name}][#{dependency}]",
+      label: { text: full_stack_only.include?(dependency) ? safe_join([dependency, tag.span("*", "aria-hidden": "true"), tag.span(" (full stack only)", class: "govuk-visually-hidden")]) : dependency },
+      error_message: preview.errors.where(:dependency_branches, dependency:).first&.full_message,
+      value: preview.dependency_branches.find { |dependency_branch| dependency_branch.app_name == dependency }&.branch || "main",
+      width: 20,
+    } %>
+  <% end %>
+  <% if (dependencies & full_stack_only).any? %>
+    <%= render "govuk_publishing_components/components/hint", text: "* Full stack only", aria: { hidden: "true" } %>
+  <% end %>
+<% end %>

@@ -244,4 +244,59 @@ RSpec.describe Preview do
       expect(preview.errors[:branch]).to include("has an invalid local image tag")
     end
   end
+
+  describe "#dependency_branches" do
+    it "records main for every app in a top-level preview's stack, full stack included" do
+      preview = create(:preview, app_name: "whitehall")
+
+      expect(preview.dependency_branches.pluck(:app_name, :branch)).to match_array(
+        GovukApps.dependency_tree("whitehall").uniq.map { |app_name| [app_name, "main"] },
+      )
+    end
+
+    it "keeps a branch chosen for an app in the stack, stripping whitespace, and records main for the rest" do
+      preview = create(:preview, app_name: "whitehall", dependency_branches_attributes: [
+        { app_name: "publishing-api", branch: " api-branch " },
+        { app_name: "frontend", branch: "fe-branch" },
+      ])
+
+      expect(preview.dependency_branch("publishing-api")).to eq("api-branch")
+      expect(preview.dependency_branch("frontend")).to eq("fe-branch")
+      expect(preview.dependency_branch("content-store")).to eq("main")
+    end
+
+    it "ignores a branch chosen for an app that isn't in the stack" do
+      preview = create(:preview, app_name: "publisher", dependency_branches_attributes: [{ app_name: "frontend", branch: "fe-branch" }])
+
+      expect(preview.dependency_branches.pluck(:app_name)).to eq(%w[publishing-api])
+    end
+
+    it "rejects a blank branch for a dependency, saying which" do
+      preview = build(:preview, app_name: "whitehall", dependency_branches_attributes: [{ app_name: "publishing-api", branch: " " }])
+
+      expect(preview).not_to be_valid
+      expect(preview.errors.full_messages).to include("Branch for publishing-api can't be blank")
+    end
+
+    it "rejects a local: branch for a dependency unless local images are enabled, saying which" do
+      preview = build(:preview, app_name: "whitehall", dependency_branches_attributes: [{ app_name: "publishing-api", branch: "local:api-abc1234" }])
+
+      expect(preview).not_to be_valid
+      expect(preview.errors.full_messages).to include("Branch for publishing-api can only use a local image in local development")
+      expect(preview.errors.where(:dependency_branches, dependency: "publishing-api")).to be_present
+    end
+
+    it "accepts a local: branch for a dependency when local images are enabled" do
+      enable_local_images
+
+      expect(build(:preview, app_name: "whitehall", dependency_branches_attributes: [{ app_name: "publishing-api", branch: "local:api-abc1234" }])).to be_valid
+    end
+
+    it "records none for a dependency preview" do
+      parent = create(:preview, app_name: "whitehall")
+      dependency = create(:preview, app_name: "publishing-api", parent:)
+
+      expect(dependency.dependency_branches).to be_empty
+    end
+  end
 end
