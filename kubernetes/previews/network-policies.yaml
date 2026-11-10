@@ -84,7 +84,7 @@ spec:
     # Rule 1: Allow TCP traffic to the Kubernetes API Server
     - to:
         - ipBlock:
-            cidr: 172.16.0.0/12
+            cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 6443
