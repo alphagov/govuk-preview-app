@@ -372,6 +372,28 @@ RSpec.describe KubernetesRunner do
     end
   end
 
+  describe "an app that supports the emergency banner" do
+    let(:preview) { create(:preview, app_name: "smart-answers", branch: "my-branch") }
+    let(:image) { "ghcr.io/alphagov/govuk/smart-answers:abc123" }
+    let(:name) { runner.container_name }
+
+    it "runs its worker in the web pod, with the volumes mounted in both" do
+      apply_stub("v1", "services", name)
+      apply_stub("apps/v1", "deployments", name)
+      stub_request(:get, k8s_url(api.path("apps/v1", "deployments", name))).to_return(json_response(rolled_out_deployment))
+
+      runner.start!
+
+      pod = applied_body("apps/v1", "deployments", name).dig("spec", "template", "spec")
+      pod["containers"].each do |container|
+        expect(container["volumeMounts"].map { |m| m["mountPath"] }).to include("/etc/emergency-banner")
+      end
+      expect(pod["volumes"]).to include(
+        { "configMap" => { "name" => "govuk-apps-emergency-banner" }, "name" => "govuk-apps-emergency-banner-vol" },
+      )
+    end
+  end
+
   describe "#migrate!" do
     let(:jobs_path) { api.path("batch/v1", "jobs") }
 

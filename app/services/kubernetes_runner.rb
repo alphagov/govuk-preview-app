@@ -407,6 +407,7 @@ private
       containers:,
       volumes: [
         { name: "overrides", configMap: { name: overrides_name } },
+        *(app.supports_emergency_banner ? [{ name: "govuk-apps-emergency-banner-vol", configMap: { name: "govuk-apps-emergency-banner" } }] : []),
         *(web ? shared_volume_sources : []),
       ],
     }
@@ -437,6 +438,7 @@ private
       securityContext: self.class.container_security_context,
       volumeMounts: [
         { name: "overrides", mountPath: OVERRIDES_PATH, subPath: OVERRIDES_KEY, readOnly: true },
+        *(app.supports_emergency_banner ? [{ name: "govuk-apps-emergency-banner-vol", mountPath: "/etc/emergency-banner", readOnly: true }] : []),
         *(shared_volumes ? app.shared_volumes.map { |volume, settings| { name: "shared-#{volume}", mountPath: settings.fetch("path") } } : []),
       ],
     }
