@@ -87,6 +87,7 @@ module PreviewsHelper
     return actions_cell(actions << delete_preview_link(preview)) unless preview.app_known?
 
     actions << preview_post_link("Sleep", sleep_preview_path(preview), preview) if preview.running?
+    actions << preview_post_link("Restart", rollout_restart_preview_path(preview), preview) if preview.running?
     # A local: image is fixed for good (see ImageResolver) - there's never
     # a newer one to refresh onto.
     if preview.running? && preview.status_message.blank? && !ImageResolver.local?(preview.branch)

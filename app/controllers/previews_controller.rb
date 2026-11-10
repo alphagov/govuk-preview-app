@@ -105,6 +105,14 @@ class PreviewsController < ApplicationController
     redirect_to previews_path, notice: "Retrying preview of #{preview.app_name} (#{preview.branch})."
   end
 
+  def rollout_restart
+    preview = Preview.find(params[:id])
+    preview.record_interaction!
+
+    PreviewsRolloutRestartJob.perform_async(preview.id)
+    redirect_to previews_path, notice: "Rollout restart of #{preview.app_name} (#{preview.branch})."
+  end
+
 private
 
   # Each app on the form has its own full stack box and dependency branch
