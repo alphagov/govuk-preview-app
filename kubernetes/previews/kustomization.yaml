@@ -12,3 +12,5 @@ resources:
   - resource-quota.yaml
   - network-policies.yaml
   - sink.yaml
+  - whitehall-service-account.yaml
+  - govuk-apps-emergency-banner-configmap.yaml

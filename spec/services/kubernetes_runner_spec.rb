@@ -174,6 +174,8 @@ RSpec.describe KubernetesRunner do
       container = pod["containers"].first
 
       expect(container["image"]).to eq(image)
+
+      expect(pod["serviceAccountName"]).to be_nil
       expect(pod["automountServiceAccountToken"]).to be(false)
       expect(pod["enableServiceLinks"]).to be(false)
       expect(pod["securityContext"]).to include("runAsUser" => 1001, "seccompProfile" => { "type" => "RuntimeDefault" })
@@ -198,6 +200,30 @@ RSpec.describe KubernetesRunner do
         "govuk-preview-app/preview-id" => preview.id.to_s,
         "govuk-preview-app/root-id" => preview.id.to_s,
       )
+    end
+
+    context "when a service_account has been specified" do
+      before do
+        publishing_api_app = GovukApps.find("publishing-api")
+        publishing_api_app.service_account = "my-service-account"
+        allow(GovukApps).to receive(:find).and_return(publishing_api_app)
+      end
+
+      it "attaches the service account and mounts the service account token" do
+        stub_request(:get, k8s_url(api.path("apps/v1", "deployments", name)))
+          .to_return(json_response({ status: {} }), json_response(rolled_out_deployment))
+
+        expect(runner.start!(extra_env: { "PLEK_SERVICE_CONTENT_STORE_URI" => "http://cs" })).to eq("deploy-uid")
+
+        service = applied_body("v1", "services", name)
+        expect(service.dig("spec", "ports", 0)).to include("port" => 80, "targetPort" => 3000)
+
+        deployment = applied_body("apps/v1", "deployments", name)
+        pod = deployment.dig("spec", "template", "spec")
+
+        expect(pod["serviceAccountName"]).to eq("my-service-account")
+        expect(pod["automountServiceAccountToken"]).to be(true)
+      end
     end
 
     it "keeps waiting while the old pod is still serving, until the new version has fully rolled out" do
@@ -343,6 +369,28 @@ RSpec.describe KubernetesRunner do
 
       container = applied_body("apps/v1", "deployments", name).dig("spec", "template", "spec", "containers", 0)
       expect(env_hash(container)).to include("FAKE_S3_HOST" => preview.url, "PLEK_SERVICE_DRAFT_ASSETS_URI" => preview.url)
+    end
+  end
+
+  describe "an app that supports the emergency banner" do
+    let(:preview) { create(:preview, app_name: "smart-answers", branch: "my-branch") }
+    let(:image) { "ghcr.io/alphagov/govuk/smart-answers:abc123" }
+    let(:name) { runner.container_name }
+
+    it "runs its worker in the web pod, with the volumes mounted in both" do
+      apply_stub("v1", "services", name)
+      apply_stub("apps/v1", "deployments", name)
+      stub_request(:get, k8s_url(api.path("apps/v1", "deployments", name))).to_return(json_response(rolled_out_deployment))
+
+      runner.start!
+
+      pod = applied_body("apps/v1", "deployments", name).dig("spec", "template", "spec")
+      pod["containers"].each do |container|
+        expect(container["volumeMounts"].map { |m| m["mountPath"] }).to include("/etc/emergency-banner")
+      end
+      expect(pod["volumes"]).to include(
+        { "configMap" => { "name" => "govuk-apps-emergency-banner" }, "name" => "govuk-apps-emergency-banner-vol" },
+      )
     end
   end
 

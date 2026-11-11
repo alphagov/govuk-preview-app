@@ -16,7 +16,8 @@ module GovukApps
   Definition = Struct.new(
     :name, :repo_url, :port_env_var, :env, :dependencies, :database, :setup_tasks,
     :worker_command, :publicly_readable, :env_aliases, :resync_tasks, :memory,
-    :shared_volumes, :self_url_env, :public_paths, keyword_init: true
+    :shared_volumes, :service_account, :self_url_env, :public_paths, :supports_emergency_banner,
+    keyword_init: true
   )
 
   def self.all
@@ -54,8 +55,10 @@ module GovukApps
         resync_tasks: attrs.fetch("resync_tasks", []),
         memory: attrs["memory"],
         shared_volumes: attrs.fetch("shared_volumes", {}),
+        service_account: attrs.fetch("service_account", nil),
         self_url_env: attrs.fetch("self_url_env", []),
         public_paths: attrs["public_paths"],
+        supports_emergency_banner: attrs.fetch("supports_emergency_banner", false),
       )
     end
   end

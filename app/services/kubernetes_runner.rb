@@ -390,7 +390,9 @@ private
       restartPolicy: restart_policy,
       # Previews run arbitrary branch code - they have no business talking
       # to the Kubernetes API, and Preview App's own token is never theirs.
-      automountServiceAccountToken: false,
+      serviceAccountName: app.service_account,
+      automountServiceAccountToken: app.service_account.present?,
+      # automountServiceAccountToken: true,
       # Otherwise every pod gets <SERVICE>_PORT-style env vars for every
       # other preview's Service in the namespace - e.g. a Service named
       # `redis` injects REDIS_PORT=tcp://..., which some apps misread.
@@ -405,6 +407,7 @@ private
       containers:,
       volumes: [
         { name: "overrides", configMap: { name: overrides_name } },
+        *(app.supports_emergency_banner ? [{ name: "govuk-apps-emergency-banner-vol", configMap: { name: "govuk-apps-emergency-banner" } }] : []),
         *(web ? shared_volume_sources : []),
       ],
     }
@@ -435,6 +438,7 @@ private
       securityContext: self.class.container_security_context,
       volumeMounts: [
         { name: "overrides", mountPath: OVERRIDES_PATH, subPath: OVERRIDES_KEY, readOnly: true },
+        *(app.supports_emergency_banner ? [{ name: "govuk-apps-emergency-banner-vol", mountPath: "/etc/emergency-banner", readOnly: true }] : []),
         *(shared_volumes ? app.shared_volumes.map { |volume, settings| { name: "shared-#{volume}", mountPath: settings.fetch("path") } } : []),
       ],
     }

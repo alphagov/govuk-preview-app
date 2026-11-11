@@ -177,6 +177,7 @@ asset-manager:
 collections:
   repo_url: https://github.com/alphagov/collections.git
   port_env_var: PORT
+  supports_emergency_banner: true
   env:
     GOVUK_APP_DOMAIN: www.gov.uk
     GOVUK_WEBSITE_ROOT: https://www.gov.uk
@@ -232,6 +233,7 @@ draft-frontend:
   repo_url: https://github.com/alphagov/frontend.git
   port_env_var: PORT
   publicly_readable: true
+  supports_emergency_banner: true
   env_aliases:
     PLEK_SERVICE_CONTENT_STORE_URI: PLEK_SERVICE_DRAFT_CONTENT_STORE_URI
   env:
@@ -244,6 +246,7 @@ draft-frontend:
 feedback:
   repo_url: https://github.com/alphagov/feedback.git
   port_env_var: PORT
+  supports_emergency_banner: true
   env:
     GOVUK_APP_DOMAIN: www.gov.uk
     GOVUK_WEBSITE_ROOT: https://www.gov.uk
@@ -252,6 +255,7 @@ feedback:
 finder-frontend:
   repo_url: https://github.com/alphagov/finder-frontend.git
   port_env_var: PORT
+  supports_emergency_banner: true
   env:
     GOVUK_APP_DOMAIN: www.gov.uk
     GOVUK_WEBSITE_ROOT: https://www.gov.uk
@@ -266,6 +270,7 @@ frontend:
   repo_url: https://github.com/alphagov/frontend.git
   port_env_var: PORT
   publicly_readable: true
+  supports_emergency_banner: true
   # For its postcode pages (local transactions, licences, find your
   # council, find nearest places). Places Manager comes last, so it's
   # pointed at the other two as well.
@@ -448,6 +453,7 @@ short-url-manager:
 smart-answers:
   repo_url: https://github.com/alphagov/smart-answers.git
   port_env_var: PORT
+  supports_emergency_banner: true
   env:
     GOVUK_APP_DOMAIN: www.gov.uk
     GOVUK_WEBSITE_ROOT: https://www.gov.uk
@@ -598,6 +604,7 @@ whitehall:
     GOVUK_WEBSITE_ROOT: PLEK_SERVICE_FRONTEND_PUBLIC_URL
     PLEK_SERVICE_DRAFT_ORIGIN_URI: PLEK_SERVICE_DRAFT_FRONTEND_PUBLIC_URL
     GOVUK_ASSET_ROOT: PLEK_SERVICE_ASSET_MANAGER_PUBLIC_URL
+  service_account: whitehall-admin
   # Where uploads wait for the worker to send them to Asset Manager.
   shared_volumes:
     uploads:

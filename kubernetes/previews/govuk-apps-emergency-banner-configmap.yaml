@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: govuk-apps-emergency-banner
+  labels:
+  annotations:
+    kubernetes.io/description: >
+      Emergency banner config applied to relevant frontend apps and read/written by Whitehall.
+data:
+  config.yaml: |
+    ---
+    campaign_class: ""
+    heading: ""
+    link_text: ""
+    link_url: ""
+    short_description: ""
