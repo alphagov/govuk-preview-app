@@ -177,7 +177,7 @@ asset-manager:
 collections:
   repo_url: https://github.com/alphagov/collections.git
   port_env_var: PORT
-  supports_emergency_banner: true
+  supports_emergency_banner: false
   env:
     GOVUK_APP_DOMAIN: www.gov.uk
     GOVUK_WEBSITE_ROOT: https://www.gov.uk
@@ -233,7 +233,7 @@ draft-frontend:
   repo_url: https://github.com/alphagov/frontend.git
   port_env_var: PORT
   publicly_readable: true
-  supports_emergency_banner: true
+  supports_emergency_banner: false
   env_aliases:
     PLEK_SERVICE_CONTENT_STORE_URI: PLEK_SERVICE_DRAFT_CONTENT_STORE_URI
   env:
@@ -246,7 +246,7 @@ draft-frontend:
 feedback:
   repo_url: https://github.com/alphagov/feedback.git
   port_env_var: PORT
-  supports_emergency_banner: true
+  supports_emergency_banner: false
   env:
     GOVUK_APP_DOMAIN: www.gov.uk
     GOVUK_WEBSITE_ROOT: https://www.gov.uk
@@ -255,7 +255,7 @@ feedback:
 finder-frontend:
   repo_url: https://github.com/alphagov/finder-frontend.git
   port_env_var: PORT
-  supports_emergency_banner: true
+  supports_emergency_banner: false
   env:
     GOVUK_APP_DOMAIN: www.gov.uk
     GOVUK_WEBSITE_ROOT: https://www.gov.uk
@@ -270,7 +270,7 @@ frontend:
   repo_url: https://github.com/alphagov/frontend.git
   port_env_var: PORT
   publicly_readable: true
-  supports_emergency_banner: true
+  supports_emergency_banner: false
   # For its postcode pages (local transactions, licences, find your
   # council, find nearest places). Places Manager comes last, so it's
   # pointed at the other two as well.
@@ -453,7 +453,7 @@ short-url-manager:
 smart-answers:
   repo_url: https://github.com/alphagov/smart-answers.git
   port_env_var: PORT
-  supports_emergency_banner: true
+  supports_emergency_banner: false
   env:
     GOVUK_APP_DOMAIN: www.gov.uk
     GOVUK_WEBSITE_ROOT: https://www.gov.uk
