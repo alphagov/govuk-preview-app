@@ -99,6 +99,17 @@ RSpec.describe GovukApps do
       )
     end
 
+    it "points frontend and draft-frontend at the real GOV.UK Search API" do
+      # Otherwise Plek builds a hostname that doesn't resolve (e.g.
+      # draft-search-api.www.gov.uk, via draft-frontend's
+      # PLEK_HOSTNAME_PREFIX), breaking /random and other search-backed pages.
+      %w[frontend draft-frontend].each do |app|
+        expect(described_class.find(app).env).to include(
+          "PLEK_SERVICE_SEARCH_API_URI" => "https://www.gov.uk/api",
+        )
+      end
+    end
+
     it "parses govuk-publishing-components, including its Procfile-only MAIN_COMPONENT_GUIDE flag" do
       definition = described_class.find("govuk-publishing-components")
 
