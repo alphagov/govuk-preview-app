@@ -7,7 +7,7 @@ gem "bootsnap", require: false
 gem "dartsass-rails"
 gem "gds-sso"
 gem "govuk_app_config"
-gem "govuk_publishing_components"
+gem "govuk_publishing_components", git: "https://github.com/alphagov/govuk_publishing_components.git", branch: "test-1-upgrade-to-govuk-frontend-6.2"
 gem "govuk_sidekiq"
 gem "pg", "~> 1.1"
 gem "plek"

@@ -1,3 +1,20 @@
+GIT
+  remote: https://github.com/alphagov/govuk_publishing_components.git
+  revision: 4a1fa62fc0432fbd433e5df58c0dc44833fc67b3
+  branch: test-1-upgrade-to-govuk-frontend-6.2
+  specs:
+    govuk_publishing_components (71.1.0)
+      chartkick
+      govuk_app_config
+      govuk_personalisation (>= 0.7.0)
+      kramdown
+      ostruct
+      plek
+      rails (>= 6)
+      rouge
+      sprockets (>= 3)
+      sprockets-rails
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -173,17 +190,6 @@ GEM
     govuk_personalisation (1.2.0)
       plek (>= 1.9.0)
       rails (>= 6, < 9)
-    govuk_publishing_components (70.2.0)
-      chartkick
-      govuk_app_config
-      govuk_personalisation (>= 0.7.0)
-      kramdown
-      ostruct
-      plek
-      rails (>= 6)
-      rouge
-      sprockets (>= 3)
-      sprockets-rails
     govuk_sidekiq (12.0.0)
       gds-api-adapters (>= 19.1.0)
       govuk_app_config (>= 1.1)
@@ -687,7 +693,7 @@ DEPENDENCIES
   factory_bot_rails
   gds-sso
   govuk_app_config
-  govuk_publishing_components
+  govuk_publishing_components!
   govuk_sidekiq
   govuk_test
   pg (~> 1.1)
@@ -751,7 +757,7 @@ CHECKSUMS
   googleapis-common-protos-types (1.23.0) sha256=992e740a523794d9fc5f29a504465d8fc737aaa16c930fe7228e3346860faf0a
   govuk_app_config (9.26.0) sha256=e2da4a2d26a704a35d632cc159ea6c8d29087d272a81b1ff03f7df2a0a126b2d
   govuk_personalisation (1.2.0) sha256=8496e9e30c433846b87547b63ec65c98a64dd92fcf1b46b45e300150a24430b1
-  govuk_publishing_components (70.2.0) sha256=aab984fe7ecf2aac2c8959ccc485566cf6cc25bcff114f92512b5b33f2d53cbb
+  govuk_publishing_components (71.1.0)
   govuk_sidekiq (12.0.0) sha256=378b0741330212d60c5bdd9787fd8122d71523ef9b61dfbf02d1f3ea666b85f2
   govuk_test (4.1.3) sha256=27334f70966fc52ebceff6b90f487ae294b577dd2b4e469ae6b2a32a44dd1bd5
   hashdiff (1.2.1) sha256=9c079dbc513dfc8833ab59c0c2d8f230fa28499cc5efb4b8dd276cf931457cd1
