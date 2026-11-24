@@ -2,7 +2,13 @@
 // rely on, e.g. govuk-body) rather than a hand-picked subset, so a view
 // can use any of them without also having to remember an import here -
 // as other GOV.UK admin apps, e.g. Short URL Manager, do.
-@import "govuk_publishing_components/all-components";
+
+@use "govuk_publishing_components/base" as * with (
+  $govuk-page-width: 1200px
+);
+@use "govuk_publishing_components/core";
+@use "govuk_publishing_components/lib";
+@use "govuk_publishing_components/all-components";
 
 // Wider than GOV.UK's standard 960px page width, so the previews table has
 // room for all its columns - applied to the standard container itself, so
