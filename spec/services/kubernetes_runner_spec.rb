@@ -378,8 +378,6 @@ RSpec.describe KubernetesRunner do
     let(:name) { runner.container_name }
 
     it "runs its worker in the web pod, with the volumes mounted in both" do
-      pending("Remove when we reinstate smart-answers emergency banner support, or easier way to stub app config")
-
       apply_stub("v1", "services", name)
       apply_stub("apps/v1", "deployments", name)
       stub_request(:get, k8s_url(api.path("apps/v1", "deployments", name))).to_return(json_response(rolled_out_deployment))
