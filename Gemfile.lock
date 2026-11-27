@@ -75,7 +75,7 @@ GEM
       securerandom (>= 0.3)
       tzinfo (~> 2.0, >= 2.0.5)
       uri (>= 0.13.1)
-    addressable (2.9.1)
+    addressable (2.10.0)
       public_suffix (>= 2.0.2, < 8.0)
     anonymous_loader (0.1.3)
       version_gem (~> 1.1, >= 1.1.14)
@@ -146,6 +146,9 @@ GEM
       warden-oauth2 (~> 0.0.1)
     globalid (1.4.0)
       activesupport (>= 6.1)
+    google-protobuf (4.36.2)
+      bigdecimal
+      rake (~> 13.3)
     google-protobuf (4.36.2-aarch64-linux-gnu)
       bigdecimal
       rake (~> 13.3)
@@ -194,7 +197,7 @@ GEM
       capybara (>= 3.36)
       puma
       selenium-webdriver (>= 4.0)
-    hashdiff (1.2.1)
+    hashdiff (1.3.0)
     hashie (5.2.0)
       logger
     http-accept (1.7.0)
@@ -236,6 +239,7 @@ GEM
       mime-types-data (~> 3.2025, >= 3.2025.0507)
     mime-types-data (3.2026.0922)
     mini_mime (1.1.5)
+    mini_portile2 (2.8.9)
     minitest (6.1.0)
       drb (~> 2.0)
       prism (>= 1.5, < 3)
@@ -255,6 +259,9 @@ GEM
       net-protocol
     netrc (0.11.0)
     nio4r (2.7.5)
+    nokogiri (1.19.7)
+      mini_portile2 (~> 2.8.2)
+      racc (~> 1.4)
     nokogiri (1.19.7-aarch64-linux-gnu)
       racc (~> 1.4)
     nokogiri (1.19.7-arm64-darwin)
@@ -460,6 +467,7 @@ GEM
     parser (3.3.12.0)
       ast (~> 2.4.1)
       racc
+    pg (1.7.0)
     pg (1.7.0-aarch64-linux)
     pg (1.7.0-arm64-darwin)
     pg (1.7.0-x86_64-linux)
@@ -603,6 +611,9 @@ GEM
       rubocop (~> 1.81)
     ruby-progressbar (1.13.0)
     rubyzip (3.7.0)
+    sass-embedded (1.105.0)
+      google-protobuf (~> 4.31)
+      rake (~> 13.3)
     sass-embedded (1.105.0-aarch64-linux-gnu)
       google-protobuf (~> 4.31)
     sass-embedded (1.105.0-arm64-darwin)
@@ -660,7 +671,7 @@ GEM
       rack (>= 2.0.9)
     warden-oauth2 (0.0.1)
       warden
-    webmock (3.34.0)
+    webmock (3.39.0)
       addressable (>= 2.8.0)
       crack (>= 0.3.2)
       hashdiff (>= 0.4.0, < 2.0.0)
@@ -715,7 +726,7 @@ CHECKSUMS
   activerecord (8.1.4.1) sha256=bd65599ca0b5d210937f835d42c7aff69d271741c75aab022730be6cbce67e87
   activestorage (8.1.4.1) sha256=0f4e2f114f3584723a80a2c089aacc6170e765a0b2c385c9782e26ed78f05c66
   activesupport (8.1.4.1) sha256=16ac4f341ca65c85a1fcdb8ac73f68891aae9e3c4a6f9c3a27daed8b00017ed7
-  addressable (2.9.1) sha256=f1212365945455c84e8d031eea40fc6bedf0c663a78d95b3ab93591040bc5c35
+  addressable (2.10.0) sha256=5e13b9c001adf01dd65ad6e0d2a91d2bc07885c0ff2b83f48cbcd95e08d9de62
   anonymous_loader (0.1.3) sha256=084a18e2439144d955447dc11dfc982f41fcd1583ad32d4d55151325dc44cb55
   ast (2.4.3) sha256=954615157c1d6a382bc27d690d973195e79db7f55e9765ac7c481c60bdb4d383
   auth-sanitizer (0.2.3) sha256=db10aac92cfbe4c64ab637eebcbe1d67395d1694798041362173370f59933e3c
@@ -745,6 +756,7 @@ CHECKSUMS
   gds-api-adapters (103.5.0) sha256=92988ac084ef720b0f03f6f678e291795278d8f06620dc59f9b0a42ee4daf14b
   gds-sso (22.3.0) sha256=28e356090c6b577ebdcb17ac9d77c5473086bbb2c080153920089034521e766a
   globalid (1.4.0) sha256=037f12fbf1d9d7a014d501c2d5c77356fd4ddd96d7a7991d6700bba96706f427
+  google-protobuf (4.36.2) sha256=2f8daff50ae14aad36ab0ccdcf284065fa71d726c444efe114e6db82ffe62494
   google-protobuf (4.36.2-aarch64-linux-gnu) sha256=c3279ec6eaa59f6ed6276eda2a33cffb4306471183ab79a332e698b8564f5169
   google-protobuf (4.36.2-arm64-darwin) sha256=f70d810e6bbab9d8ad9c1d5fd685a21de4c10ad3ad32efb9455e17e5b1286917
   google-protobuf (4.36.2-x86_64-linux-gnu) sha256=d25a820873e423f1d209ae8c672a4a28b019e2429debd0901d26670a0b4e14db
@@ -754,7 +766,7 @@ CHECKSUMS
   govuk_publishing_components (70.2.1) sha256=46b85d80d3f7215af433be4e73e26eeb4bf7a06a383756165bcf65d30cef72c1
   govuk_sidekiq (12.0.0) sha256=378b0741330212d60c5bdd9787fd8122d71523ef9b61dfbf02d1f3ea666b85f2
   govuk_test (4.1.3) sha256=27334f70966fc52ebceff6b90f487ae294b577dd2b4e469ae6b2a32a44dd1bd5
-  hashdiff (1.2.1) sha256=9c079dbc513dfc8833ab59c0c2d8f230fa28499cc5efb4b8dd276cf931457cd1
+  hashdiff (1.3.0) sha256=0b6724b8f3fef3961acc09489b175698ce0b7fd22c9cc5aa559d280cc6b65649
   hashie (5.2.0) sha256=357a22635195c2e3911fbbc3de9a7d528843d1f42ab0aae02171048f16332d72
   http-accept (1.7.0) sha256=c626860682bfbb3b46462f8c39cd470fd7b0584f61b3cc9df5b2e9eb9972a126
   http-cookie (1.1.6) sha256=ba4b82be64de61dc281243dac70e3c382c45142f20268ed9276a3670c93feaa9
@@ -776,6 +788,7 @@ CHECKSUMS
   mime-types (3.7.0) sha256=dcebf61c246f08e15a4de34e386ebe8233791e868564a470c3fe77c00eed5e56
   mime-types-data (3.2026.0922) sha256=f49b8cf20f3b9cf3e874791cd9ec96bdd5c1740dfd1a256ce4ea56762f4c58ae
   mini_mime (1.1.5) sha256=8681b7e2e4215f2a159f9400b5816d85e9d8c6c6b491e96a12797e798f8bccef
+  mini_portile2 (2.8.9) sha256=0cd7c7f824e010c072e33f68bc02d85a00aeb6fce05bb4819c03dfd3c140c289
   minitest (6.1.0) sha256=ff373595aa8888631e8a5463986a76b3845346ae6d7fa46e139c1633d418076e
   msgpack (1.8.7) sha256=dfefec761b5f9047e6e8d95d2c7f8af4b3725d984a01942adc533aa819a2df33
   multi_xml (0.9.1) sha256=7ce766b59c17241ed62976caeae1fae9b2431b263398c35396239a68c4a64e57
@@ -786,6 +799,7 @@ CHECKSUMS
   net-smtp (0.5.2) sha256=35103cc04d6b2d94632f9928ede07483c24b70b9c0db1f231fea43909b678f3c
   netrc (0.11.0) sha256=de1ce33da8c99ab1d97871726cba75151113f117146becbe45aa85cb3dabee3f
   nio4r (2.7.5) sha256=6c90168e48fb5f8e768419c93abb94ba2b892a1d0602cb06eef16d8b7df1dca1
+  nokogiri (1.19.7) sha256=abe94507c54cb18f872777b16bdca4aad32b1abdc4c52fe843f1c80fbdf992b8
   nokogiri (1.19.7-aarch64-linux-gnu) sha256=8f5e15d299602456406e1f03a9f3456cceb33a0722811e818d2ee2214eb4c84a
   nokogiri (1.19.7-arm64-darwin) sha256=f27d7f25f4873fbc3aa35a2cc2fb680c98555fec1925348da439d0869d541142
   nokogiri (1.19.7-x86_64-linux-gnu) sha256=25865ccb462f714e712fdf8906fde07849cb6704a808e3d629d75baa5af5dd3b
@@ -851,6 +865,7 @@ CHECKSUMS
   ostruct (0.6.3) sha256=95a2ed4a4bd1d190784e666b47b2d3f078e4a9efda2fccf18f84ddc6538ed912
   parallel (1.28.0) sha256=33e6de1484baf2524792d178b0913fc8eb94c628d6cfe45599ad4458c638c970
   parser (3.3.12.0) sha256=21a6d7f755d5a24dfbdc6e6b772e4e879a52e7631a88bc5a3a134606052c9828
+  pg (1.7.0) sha256=f7b536501284e883d4c9ef86dbde0313063e4aaafc23575b0017b0d572a26afb
   pg (1.7.0-aarch64-linux) sha256=101dd3a261000eb64b03ff41a5890674b735b626dbdce88652969b59fb0b1157
   pg (1.7.0-arm64-darwin) sha256=9fa895bbe28bdd579b83ccc80464c01d1015ea7549a7919134c9f8f10c060e4b
   pg (1.7.0-x86_64-linux) sha256=d0a24f448b3c874c8b2658d4efbbbefce7315c228ede84f6f6f42089d1d704b6
@@ -898,6 +913,7 @@ CHECKSUMS
   rubocop-rspec (3.9.0) sha256=8fa70a3619408237d789aeecfb9beef40576acc855173e60939d63332fdb55e2
   ruby-progressbar (1.13.0) sha256=80fc9c47a9b640d6834e0dc7b3c94c9df37f08cb072b7761e4a71e22cff29b33
   rubyzip (3.7.0) sha256=65c19294da75297a939006f3516deacc33185fbd721ff1954f7a231db6d3e121
+  sass-embedded (1.105.0) sha256=322f46df344e5d974fc808fa2a6fe973a02932c21545402a25ac5b7aee62ff5f
   sass-embedded (1.105.0-aarch64-linux-gnu) sha256=26dc2b0f8063f99ad4df226ebecac361c52ce06c63d8acc20ebc615d1450ea09
   sass-embedded (1.105.0-arm64-darwin) sha256=c9a7bdcf976b03c7a420df25de1ce39255cc8c9776117ea20bcf0fe7cbadee3f
   sass-embedded (1.105.0-x86_64-linux-gnu) sha256=c7cb4884c6d1ddad41d52f5950167d5cf77e242d7900ca0ec13170ba43878977
@@ -923,7 +939,7 @@ CHECKSUMS
   version_gem (1.1.15) sha256=a73241587b29252e3567e0c818ded80730eb754d43b508f6ce4db22ca9ba27d0
   warden (1.2.9) sha256=46684f885d35a69dbb883deabf85a222c8e427a957804719e143005df7a1efd0
   warden-oauth2 (0.0.1) sha256=9f8dfd89d23ef8936734ca897acd7dde86802c8139d6299774d6e6bf292921fd
-  webmock (3.34.0) sha256=72eed29dc8c00148d592acaedaaa6b869e2e397de57dfc8602b84aa834f46b33
+  webmock (3.39.0) sha256=c74366b69b681ae2bb691f23643a73476157c1acdc56f674a8dece1b0fa0fd12
   webrick (1.9.2) sha256=beb4a15fc474defed24a3bda4ffd88a490d517c9e4e6118c3edce59e45864131
   websocket (1.2.11) sha256=b7e7a74e2410b5e85c25858b26b3322f29161e300935f70a0e0d3c35e0462737
   websocket-driver (0.8.2) sha256=97c556b019bf3410b4961002ac501621e9322d3f8a7bc02161a09301cc4c4146
